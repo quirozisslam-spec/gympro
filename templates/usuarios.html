@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Usuarios — GymPro{% endblock %}
+{% block topbar_title %}USUARIOS{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+  <div><h1>USUARIOS</h1><p>Gestión de miembros y cuentas del sistema</p></div>
+  <button class="btn btn-primary" onclick="openModal('modal-nuevo')">+ Nuevo Usuario</button>
+</div>
+<div id="alert-box" class="alert hidden"></div>
+<div class="card">
+  <div class="toolbar">
+    <div class="search-wrap" style="position:relative">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search" placeholder="Buscar nombre, email o cédula…" oninput="filterTable()" style="padding-left:38px;width:280px"/>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="filtro-rol" onchange="filterTable()" style="padding:10px 14px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);font-size:13px;outline:none">
+        <option value="">Todos los roles</option><option value="miembro">Miembro</option><option value="entrenador">Entrenador</option><option value="administrador">Administrador</option>
+      </select>
+      <select id="filtro-estado" onchange="filterTable()" style="padding:10px 14px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);font-size:13px;outline:none">
+        <option value="">Todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Cédula</th><th>Nombre</th><th>Email</th><th>Género</th><th>Registro</th><th>Rol</th><th>Valoración</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL NUEVO USUARIO -->
+<div class="modal-overlay" id="modal-nuevo">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>NUEVO USUARIO</h2><button class="modal-close" onclick="closeModal('modal-nuevo')">✕</button></div>
+    <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface);padding:4px;border-radius:var(--radius-sm)">
+      <button class="tab-btn active" onclick="showTab('tc',this)" style="flex:1;padding:8px;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;background:var(--card);color:var(--text);font-family:var(--font-body)">👤 Cuenta</button>
+      <button class="tab-btn" onclick="showTab('tm',this)" style="flex:1;padding:8px;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:var(--muted2);font-family:var(--font-body)">💳 Membresía</button>
+    </div>
+
+    <!-- CUENTA -->
+    <div id="tc">
+      <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.15);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted2)">
+        <strong style="color:var(--accent2)">📋 Nota:</strong> La valoración física completa se realiza por separado desde el botón "Valoración" en la tabla. La rutina solo se puede asignar después de completar la valoración.
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Cédula *</label><input id="n-cedula" placeholder="Número de identificación" oninput="checkCedula()"/><div id="cedula-msg" style="font-size:11px;margin-top:4px"></div></div>
+        <div class="form-group"><label>Teléfono</label><input id="n-telefono" placeholder="Celular"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Nombre *</label><input id="n-nombre" placeholder="Juan"/></div>
+        <div class="form-group"><label>Apellido *</label><input id="n-apellido" placeholder="Pérez"/></div>
+      </div>
+      <div class="form-group"><label>Email *</label><input type="email" id="n-email" placeholder="juan@email.com"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Contraseña * (mín. 6 caracteres)</label><input type="password" id="n-password" placeholder="••••••••"/></div>
+        <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="n-fechanac"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Género</label><select id="n-genero"><option value="">Seleccionar</option><option value="masculino">Masculino</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select></div>
+        <div class="form-group"><label>Rol *</label><select id="n-rol"><option value="3">Miembro</option><option value="2">Entrenador</option><option value="1">Administrador</option></select></div>
+      </div>
+    </div>
+
+    <!-- MEMBRESÍA -->
+    <div id="tm" style="display:none">
+      <div class="form-group"><label>Tipo de membresía</label>
+        <select id="n-tipo-memb" onchange="updatePrecio()"><option value="">Sin membresía por ahora</option></select>
+      </div>
+      <div id="memb-preview" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--font-display);font-size:22px;color:var(--accent)" id="memb-precio">—</div>
+        <div style="font-size:12px;color:var(--muted2)" id="memb-desc">—</div>
+      </div>
+      <div id="monto-group" style="display:none" class="form-group"><label>Monto a cobrar</label><div class="input-group"><input type="number" id="n-monto-memb"/><span class="input-suffix">COP</span></div></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nuevo')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-crear" onclick="createUsuario()">Crear Usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>EDITAR USUARIO</h2><button class="modal-close" onclick="closeModal('modal-editar')">✕</button></div>
+    <input type="hidden" id="e-id"/>
+    <div class="form-row">
+      <div class="form-group"><label>Cédula</label><input id="e-cedula"/></div>
+      <div class="form-group"><label>Teléfono</label><input id="e-telefono"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input id="e-nombre"/></div>
+      <div class="form-group"><label>Apellido</label><input id="e-apellido"/></div>
+    </div>
+    <div class="form-group"><label>Email</label><input type="email" id="e-email"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="e-fechanac"/></div>
+      <div class="form-group"><label>Género</label><select id="e-genero"><option value="">Seleccionar</option><option value="masculino">Masculino</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Nueva contraseña (vacío para no cambiar)</label><input type="password" id="e-password" placeholder="••••••••"/></div>
+      <div class="form-group"><label>Estado</label><select id="e-estado"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-editar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateUsuario()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allUsuarios=[], tipos=[], cedulaOk=true, checkTimeout=null;
+
+function showTab(id,btn){
+  ['tc','tm'].forEach(t=>{document.getElementById(t).style.display=t===id?'block':'none';});
+  document.querySelectorAll('.tab-btn').forEach(b=>{b.style.background='transparent';b.style.color='var(--muted2)';});
+  btn.style.background='var(--card)';btn.style.color='var(--text)';
+}
+
+function updatePrecio(){
+  const sel=document.getElementById('n-tipo-memb');
+  const t=tipos.find(x=>x.id==sel.value);
+  if(t){document.getElementById('memb-precio').textContent='$'+Number(t.precio).toLocaleString('es-CO')+' / '+t.duracion_dias+'d';document.getElementById('memb-desc').textContent=t.descripcion||'';document.getElementById('n-monto-memb').value=t.precio;document.getElementById('memb-preview').style.display='block';document.getElementById('monto-group').style.display='block';}
+  else{document.getElementById('memb-preview').style.display='none';document.getElementById('monto-group').style.display='none';}
+}
+
+function checkCedula(){
+  clearTimeout(checkTimeout);
+  const cedula=document.getElementById('n-cedula').value.trim();
+  const msg=document.getElementById('cedula-msg');
+  if(!cedula){msg.textContent='';cedulaOk=true;return;}
+  checkTimeout=setTimeout(async()=>{
+    const r=await fetch('/api/usuarios/check-cedula',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula})});
+    const d=await r.json();
+    if(d.exists){msg.textContent='⚠ Esta cédula ya está registrada en el sistema.';msg.style.color='var(--danger)';cedulaOk=false;}
+    else{msg.textContent='✓ Cédula disponible.';msg.style.color='var(--success)';cedulaOk=true;}
+  },600);
+}
+
+const rolBadge=r=>({administrador:'badge-admin',entrenador:'badge-trainer',miembro:'badge-member'}[r]||'');
+
+async function load(){
+  [allUsuarios,tipos]=await Promise.all([
+    fetch('/api/usuarios').then(r=>r.ok?r.json():[]),
+    fetch('/api/membresias/tipos').then(r=>r.ok?r.json():[]),
+  ]);
+  document.getElementById('n-tipo-memb').innerHTML='<option value="">Sin membresía por ahora</option>'+tipos.map(t=>`<option value="${t.id}">${t.nombre} — $${Number(t.precio).toLocaleString('es-CO')}</option>`).join('');
+  renderTable(allUsuarios);
+}
+
+function renderTable(data){
+  document.getElementById('tbody').innerHTML=data.map(u=>`
+    <tr>
+      <td style="color:var(--muted2);font-size:12px">${u.cedula||'—'}</td>
+      <td><strong>${u.nombre} ${u.apellido}</strong></td>
+      <td style="color:var(--muted2);font-size:12px">${u.email}</td>
+      <td style="font-size:12px">${u.genero||'—'}</td>
+      <td style="color:var(--muted);font-size:12px">${u.fecha_registro||'—'}</td>
+      <td><span class="badge ${rolBadge(u.rol)}">${u.rol}</span></td>
+      <td>${u.tiene_valoracion?'<span class="badge badge-active">✓ Completa</span>':'<span class="badge badge-warn">⚠ Pendiente</span>'}</td>
+      <td><span class="badge ${u.estado==='activo'?'badge-active':'badge-inactive'}">${u.estado}</span></td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(u)})'>✏</button>
+          ${u.rol==='miembro'?`<a href="/valoracion/${u.id}" class="btn btn-cyan btn-sm">📋 Valoración</a>`:''}
+          ${u.estado==='activo'
+            ?`<button class="btn btn-danger btn-sm" onclick="deactivate(${u.id})">× Desactivar</button>`
+            :`<button class="btn btn-success btn-sm" onclick="activate(${u.id})">✓ Activar</button>`}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function filterTable(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const r=document.getElementById('filtro-rol').value;
+  const e=document.getElementById('filtro-estado').value;
+  renderTable(allUsuarios.filter(u=>`${u.nombre} ${u.apellido} ${u.email} ${u.cedula||''}`.toLowerCase().includes(q)&&(!r||u.rol===r)&&(!e||u.estado===e)));
+}
+
+async function createUsuario(){
+  const cedula=document.getElementById('n-cedula').value.trim();
+  const nombre=document.getElementById('n-nombre').value.trim();
+  const apellido=document.getElementById('n-apellido').value.trim();
+  const email=document.getElementById('n-email').value.trim();
+  const password=document.getElementById('n-password').value;
+  const rol_id=parseInt(document.getElementById('n-rol').value);
+
+  if(!cedula)return showAlert('La cédula es obligatoria.','error');
+  if(!cedulaOk)return showAlert('Ya existe un usuario con esa cédula. Verifica el número ingresado.','error');
+  if(!nombre||!apellido)return showAlert('Nombre y apellido son obligatorios.','error');
+  if(!email)return showAlert('El email es obligatorio.','error');
+  if(!password||password.length<6)return showAlert('La contraseña debe tener mínimo 6 caracteres.','error');
+
+  const btn=document.getElementById('btn-crear');
+  btn.disabled=true;btn.textContent='Creando...';
+
+  const body={cedula,nombre,apellido,email,password,telefono:document.getElementById('n-telefono').value,fecha_nacimiento:document.getElementById('n-fechanac').value||null,genero:document.getElementById('n-genero').value||null,rol_id,
+    membresia:{tipo_id:document.getElementById('n-tipo-memb').value||null,monto_pagado:document.getElementById('n-monto-memb').value||null}};
+
+  const res=await fetch('/api/usuarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await res.json();
+  btn.disabled=false;btn.textContent='Crear Usuario';
+  if(res.ok){
+    showAlert(`✅ Usuario creado. ${data.id&&body.rol_id===3?'<br>💡 Recuerda completar la valoración física para poder asignarle una rutina.':''}`);
+    closeModal('modal-nuevo');
+    load();
+  } else {
+    showAlert(data.error||'Error al crear usuario.','error');
+  }
+}
+
+function openEdit(u){
+  document.getElementById('e-id').value=u.id;
+  document.getElementById('e-cedula').value=u.cedula||'';
+  document.getElementById('e-nombre').value=u.nombre;
+  document.getElementById('e-apellido').value=u.apellido;
+  document.getElementById('e-email').value=u.email;
+  document.getElementById('e-telefono').value=u.telefono||'';
+  document.getElementById('e-fechanac').value=u.fecha_nacimiento||'';
+  document.getElementById('e-genero').value=u.genero||'';
+  document.getElementById('e-estado').value=u.estado;
+  document.getElementById('e-password').value='';
+  openModal('modal-editar');
+}
+
+async function updateUsuario(){
+  const id=document.getElementById('e-id').value;
+  const body={cedula:document.getElementById('e-cedula').value,nombre:document.getElementById('e-nombre').value,apellido:document.getElementById('e-apellido').value,email:document.getElementById('e-email').value,telefono:document.getElementById('e-telefono').value,fecha_nacimiento:document.getElementById('e-fechanac').value||null,genero:document.getElementById('e-genero').value||null,estado:document.getElementById('e-estado').value,password:document.getElementById('e-password').value};
+  if(!body.cedula||!body.nombre||!body.apellido||!body.email)return showAlert('Cédula, nombre, apellido y email son obligatorios.','error');
+  const res=await fetch(`/api/usuarios/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await res.json();
+  if(res.ok){showAlert('Usuario actualizado.');closeModal('modal-editar');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function deactivate(id){if(!confirm('¿Desactivar?'))return;const r=await fetch(`/api/usuarios/${id}`,{method:'DELETE'});if(r.ok){showAlert('Desactivado.');load();}else showAlert('Error','error');}
+async function activate(id){if(!confirm('¿Activar?'))return;const r=await fetch(`/api/usuarios/${id}/activar`,{method:'PUT'});if(r.ok){showAlert('Activado.');load();}else showAlert('Error','error');}
+
+load();
+</script>
+{% endblock %}

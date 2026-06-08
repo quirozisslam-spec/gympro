@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Inicio — GymPro{% endblock %}
+{% block topbar_title %}Inicio{% endblock %}
+{% block extra_css %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.welcome-card{background:linear-gradient(135deg,#0f1a00,#0a0a0a);border:1px solid rgba(232,255,0,.15);border-radius:var(--radius);padding:28px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.welcome-card::before{content:'GYMPRO';position:absolute;right:-20px;top:50%;transform:translateY(-50%);font-family:var(--font-display);font-size:100px;color:rgba(232,255,0,.04);pointer-events:none;letter-spacing:4px}
+.welcome-text h2{font-family:var(--font-display);font-size:32px;color:var(--accent);letter-spacing:2px}
+.welcome-text p{color:var(--muted2);font-size:13px;margin-top:6px}
+.welcome-time{font-family:var(--font-display);font-size:48px;color:rgba(232,255,0,.3);letter-spacing:2px;flex-shrink:0}
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.chart-card canvas{max-height:200px}
+.activity-list{display:flex;flex-direction:column;gap:0}
+.activity-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.activity-item:last-child{border:none}
+.activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.activity-dot.green{background:var(--success)}
+.activity-dot.yellow{background:var(--accent)}
+.activity-dot.red{background:var(--danger)}
+.activity-dot.blue{background:var(--info)}
+.activity-text{font-size:13px;flex:1}
+.activity-time{font-size:11px;color:var(--muted);flex-shrink:0}
+.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.quick-btn{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;transition:all .2s;text-decoration:none;display:block}
+.quick-btn:hover{border-color:var(--accent);transform:translateY(-2px)}
+.quick-btn .qb-icon{font-size:24px;margin-bottom:6px}
+.quick-btn .qb-text{font-size:12px;font-weight:600;color:var(--text)}
+.cal-mini{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px}
+.cal-head span{text-align:center;font-size:9px;color:var(--muted);text-transform:uppercase}
+.cal-d{aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:var(--black);border:1px solid var(--border);color:var(--muted)}
+.cal-d.has{background:rgba(232,255,0,.12);border-color:rgba(232,255,0,.3);color:var(--accent)}
+.cal-d.today{border-color:var(--accent2);color:var(--accent2)}
+.cal-d.empty{background:transparent;border:none}
+@media(max-width:768px){.charts-row{grid-template-columns:1fr}.welcome-time{display:none}}
+</style>
+{% endblock %}
+{% block content %}
+
+<!-- BIENVENIDA -->
+<div class="welcome-card">
+  <div class="welcome-text">
+    <h2 id="saludo">BIENVENIDO</h2>
+    <p id="fecha-hoy"></p>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge badge-admin" id="rol-badge">—</span>
+      <span class="badge badge-active">Sistema activo</span>
+    </div>
+  </div>
+  <div class="welcome-time" id="reloj">00:00</div>
+</div>
+
+<!-- STATS -->
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="s-miembros">—</div><div class="stat-label">Miembros activos</div></div>
+  <div class="stat-card green"><div class="stat-icon">✓</div><div class="stat-value" id="s-hoy">—</div><div class="stat-label">Asistencias hoy</div></div>
+  <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-value" id="s-rutinas">—</div><div class="stat-label">Rutinas activas</div></div>
+  <div class="stat-card blue"><div class="stat-icon">💳</div><div class="stat-value" id="s-memb">—</div><div class="stat-label">Membresías activas</div></div>
+</div>
+
+<!-- ACCIONES RÁPIDAS -->
+{% if session.get('rol') == 'administrador' %}
+<div class="quick-actions">
+  <a href="/usuarios" class="quick-btn"><div class="qb-icon">👤</div><div class="qb-text">Nuevo miembro</div></a>
+  <a href="/rutinas" class="quick-btn"><div class="qb-icon">📋</div><div class="qb-text">Nueva rutina</div></a>
+  <a href="/asistencia" class="quick-btn"><div class="qb-icon">✓</div><div class="qb-text">Registrar asistencia</div></a>
+  <a href="/membresias" class="quick-btn"><div class="qb-icon">💳</div><div class="qb-text">Nueva membresía</div></a>
+  <a href="/reportes" class="quick-btn"><div class="qb-icon">📊</div><div class="qb-text">Ver reportes</div></a>
+</div>
+{% endif %}
+
+<!-- GRÁFICAS -->
+<div class="charts-row">
+  <div class="chart-card">
+    <div class="card-title">ASISTENCIA ÚLTIMOS 6 MESES</div>
+    <canvas id="chart-asist"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="card-title">ALERTAS Y ACTIVIDAD</div>
+    <div class="activity-list" id="activity-list"></div>
+  </div>
+</div>
+
+<!-- TABLAS -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <div class="card">
+    <div class="card-title">ASISTENCIA HOY</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Miembro</th><th>Entrada</th><th>Estado</th></tr></thead>
+        <tbody id="tb-hoy"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">CALENDARIO DE ASISTENCIA</div>
+    <div class="cal-head"><span>D</span><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span></div>
+    <div class="cal-mini" id="calendario"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+let chartA = null;
+const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const now = new Date();
+
+// Reloj
+function updateReloj(){
+  const t = new Date();
+  document.getElementById('reloj').textContent =
+    String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+}
+updateReloj(); setInterval(updateReloj, 1000);
+
+document.getElementById('saludo').textContent =
+  `BIENVENIDO, {{ session.get('nombre','').split(' ')[0].upper() }}`;
+document.getElementById('fecha-hoy').textContent =
+  now.toLocaleDateString('es-CO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+document.getElementById('rol-badge').textContent = '{{ session.get("rol","") }}';
+
+function animCount(id,t){
+  const el=document.getElementById(id);let c=0;
+  const step=Math.max(1,Math.floor(t/20));
+  const tm=setInterval(()=>{c=Math.min(c+step,t);el.textContent=c;if(c>=t)clearInterval(tm)},40);
+}
+
+async function load(){
+  const [usuarios, rutinas, asistencias, membresias, asistMensual] = await Promise.all([
+    fetch('/api/usuarios').then(r=>r.ok?r.json():[]),
+    fetch('/api/rutinas').then(r=>r.ok?r.json():[]),
+    fetch('/api/asistencia').then(r=>r.ok?r.json():[]),
+    fetch('/api/membresias').then(r=>r.ok?r.json():[]),
+    fetch('/api/reportes/asistencia-mensual').then(r=>r.ok?r.json():[]),
+  ]);
+
+  const today = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  const hoy = asistencias.filter(a=>a.fecha===today);
+
+  animCount('s-miembros', usuarios.filter(u=>u.estado==='activo').length);
+  animCount('s-hoy', hoy.length);
+  animCount('s-rutinas', rutinas.length);
+  animCount('s-memb', membresias.filter(m=>m.estado==='activa').length);
+
+  // Asistencia hoy
+  document.getElementById('tb-hoy').innerHTML = hoy.slice(0,8).map(a=>`
+    <tr>
+      <td><strong>${a.miembro}</strong></td>
+      <td style="color:var(--muted2)">${a.hora_entrada||'—'}</td>
+      <td><span class="badge badge-active">✓ Presente</span></td>
+    </tr>`).join('') || '<tr><td colspan="3" style="color:var(--muted);text-align:center;padding:16px">Sin asistencias hoy</td></tr>';
+
+  // Actividad / alertas
+  const acts = [];
+  if(hoy.length===0) acts.push({d:'red',t:'Sin asistencias registradas hoy',time:'Ahora'});
+  const sinRutina = usuarios.filter(u=>u.rol==='miembro').length;
+  acts.push({d:'yellow',t:`${hoy.length} miembros en el gym hoy`,time:'Hoy'});
+  const vencen = membresias.filter(m=>m.dias_restantes<=7&&m.estado==='activa').length;
+  if(vencen>0) acts.push({d:'red',t:`${vencen} membresía(s) vencen en 7 días`,time:'Urgente'});
+  acts.push({d:'green',t:'Sistema funcionando correctamente',time:'Activo'});
+  acts.push({d:'blue',t:`${rutinas.length} rutinas disponibles`,time:'Total'});
+
+  document.getElementById('activity-list').innerHTML = acts.map(a=>`
+    <div class="activity-item">
+      <div class="activity-dot ${a.d}"></div>
+      <div class="activity-text">${a.t}</div>
+      <div class="activity-time">${a.time}</div>
+    </div>`).join('');
+
+  // Gráfica
+  const mesA = now.getMonth()+1, anioA = now.getFullYear();
+  const labels=[], vals=[];
+  for(let m=mesA-5;m<=mesA;m++){
+    const mm=m<=0?m+12:m, aa=m<=0?anioA-1:anioA;
+    labels.push(meses[mm]);
+    vals.push(asistMensual.filter(a=>a.mes==mm&&a.anio==aa).reduce((s,a)=>s+a.total_asistencias,0));
+  }
+  if(chartA) chartA.destroy();
+  chartA = new Chart(document.getElementById('chart-asist'),{
+    type:'line',
+    data:{labels,datasets:[{label:'Asistencias',data:vals,borderColor:'#e8ff00',backgroundColor:'rgba(232,255,0,.08)',fill:true,tension:0.4,pointBackgroundColor:'#e8ff00',pointRadius:4}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:'#555'},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{ticks:{color:'#555',stepSize:1},grid:{color:'rgba(255,255,255,.03)'},beginAtZero:true}
+    }}
+  });
+
+  // Calendario
+  buildCal(asistencias);
+}
+
+function buildCal(asist){
+  const y=now.getFullYear(),m=now.getMonth();
+  const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),todayN=now.getDate();
+  const dias=new Set(asist.filter(a=>{const d=new Date(a.fecha+'T00:00:00');return d.getFullYear()===y&&d.getMonth()===m}).map(a=>new Date(a.fecha+'T00:00:00').getDate()));
+  let html='';
+  for(let i=0;i<first;i++) html+='<div class="cal-d empty"></div>';
+  for(let d=1;d<=days;d++){
+    let c='cal-d';
+    if(d===todayN) c+=' today';
+    if(dias.has(d)) c+=' has';
+    html+=`<div class="${c}">${d}</div>`;
+  }
+  document.getElementById('calendario').innerHTML=html;
+}
+
+load();
+</script>
+{% endblock %}

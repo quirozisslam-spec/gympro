@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+{% block title %}Mi Perfil — GymPro{% endblock %}
+{% block topbar_title %}MI PERFIL{% endblock %}
+{% block extra_css %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.perfil-banner{display:flex;align-items:center;gap:20px;background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;
+  flex-wrap:wrap;position:relative;overflow:hidden}
+.perfil-banner::after{content:'GYMPRO';position:absolute;right:-10px;top:50%;
+  transform:translateY(-50%);font-family:var(--font-display);font-size:80px;
+  color:rgba(108,99,255,.05);pointer-events:none}
+.avatar-lg{width:80px;height:80px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:28px;color:#000;flex-shrink:0;
+  box-shadow:0 0 20px rgba(108,99,255,.4)}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.info-item{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
+.info-label{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.info-value{font-size:14px;font-weight:600;color:var(--text)}
+.memb-card{background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(0,212,255,.05));
+  border:1px solid rgba(108,99,255,.2);border-radius:var(--radius);padding:20px}
+.dias-ring{width:70px;height:70px;border-radius:50%;
+  border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;
+  flex-direction:column;flex-shrink:0}
+.dias-ring .num{font-family:var(--font-display);font-size:24px;color:var(--accent);line-height:1}
+.dias-ring .lbl{font-size:9px;color:var(--muted2);text-transform:uppercase}
+.stat-mini{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:16px;text-align:center}
+.stat-mini .val{font-family:var(--font-display);font-size:28px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-mini .lbl{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.vencer-item{display:flex;justify-content:space-between;align-items:center;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.vencer-item:last-child{border:none}
+.rutina-dia{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px;margin-bottom:8px}
+.ejercicio-row{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.ejercicio-row:last-child{border:none}
+</style>
+{% endblock %}
+{% block content %}
+<div id="alert-box" class="alert hidden"></div>
+
+{% if session.get('rol') == 'administrador' %}
+<!-- PERFIL ADMINISTRADOR -->
+<div class="perfil-banner">
+  <div class="avatar-lg" id="avatar">AG</div>
+  <div style="flex:1">
+    <div style="font-family:var(--font-display);font-size:26px;background:linear-gradient(135deg,var(--text),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" id="p-nombre">—</div>
+    <div style="color:var(--muted2);font-size:13px;margin-top:4px" id="p-email">—</div>
+    <div style="margin-top:8px"><span class="badge badge-admin">👑 Administrador</span><span class="badge badge-active" style="margin-left:6px">Sistema activo</span></div>
+  </div>
+  <button class="btn btn-secondary" onclick="openModal('modal-editar')">✏ Editar</button>
+</div>
+
+<!-- STATS DEL GYM -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px" id="stats-admin">
+  <div class="stat-mini"><div class="val" id="sa-miembros">—</div><div class="lbl">Miembros</div></div>
+  <div class="stat-mini"><div class="val" id="sa-entrenadores">—</div><div class="lbl">Entrenadores</div></div>
+  <div class="stat-mini"><div class="val" id="sa-rutinas">—</div><div class="lbl">Rutinas</div></div>
+  <div class="stat-mini"><div class="val" id="sa-membresias">—</div><div class="lbl">Membresías activas</div></div>
+  <div class="stat-mini"><div class="val" id="sa-hoy">—</div><div class="lbl">Asistencias hoy</div></div>
+</div>
+
+<div class="grid-2" style="margin-bottom:20px">
+  <!-- INGRESOS -->
+  <div class="card">
+    <div class="card-title">💰 RESUMEN DE INGRESOS</div>
+    <div id="ingresos-info" style="color:var(--muted2)">Cargando...</div>
+  </div>
+  <!-- MEMBRESÍAS POR VENCER -->
+  <div class="card">
+    <div class="card-title">⚠ MEMBRESÍAS POR VENCER (7 días)</div>
+    <div id="vencer-lista"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">📊 ASISTENCIA MENSUAL DEL GIMNASIO</div>
+  <canvas id="chart-admin" style="max-height:200px"></canvas>
+</div>
+
+{% else %}
+<!-- PERFIL MIEMBRO -->
+<div class="perfil-banner">
+  <div class="avatar-lg" id="avatar">—</div>
+  <div style="flex:1">
+    <div style="font-family:var(--font-display);font-size:26px;background:linear-gradient(135deg,var(--text),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" id="p-nombre">—</div>
+    <div style="color:var(--muted2);font-size:13px;margin-top:4px" id="p-email">—</div>
+    <div style="margin-top:8px"><span class="badge badge-member" id="p-rol">Miembro</span></div>
+  </div>
+  <button class="btn btn-secondary" onclick="openModal('modal-editar')">✏ Editar</button>
+</div>
+
+<div class="grid-2" style="margin-bottom:20px">
+  <div class="card memb-card">
+    <div class="card-title">💳 MI MEMBRESÍA</div>
+    <div id="memb-info" style="color:var(--muted2)">Cargando...</div>
+  </div>
+  <div class="card">
+    <div class="card-title">📊 MIS ASISTENCIAS</div>
+    <canvas id="chart-asist" style="max-height:160px"></canvas>
+  </div>
+</div>
+
+<!-- DATOS FÍSICOS -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-title">💪 MIS DATOS FÍSICOS</div>
+  <div id="datos-fisicos-info" style="color:var(--muted2)">Cargando...</div>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-title">📋 MI RUTINA ACTIVA</div>
+  <div id="rutina-info" style="color:var(--muted2)">Cargando...</div>
+</div>
+
+<div class="card">
+  <div class="card-title">📝 MIS DATOS PERSONALES</div>
+  <div class="info-grid">
+    <div class="info-item"><div class="info-label">Teléfono</div><div class="info-value" id="p-tel">—</div></div>
+    <div class="info-item"><div class="info-label">Miembro desde</div><div class="info-value" id="p-reg">—</div></div>
+    <div class="info-item"><div class="info-label">Estado</div><div class="info-value" id="p-estado">—</div></div>
+    <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="p-email2">—</div></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- MODAL EDITAR -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal">
+    <div class="modal-header"><h2>EDITAR PERFIL</h2><button class="modal-close" onclick="closeModal('modal-editar')">✕</button></div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input id="e-nombre"/></div>
+      <div class="form-group"><label>Apellido</label><input id="e-apellido"/></div>
+    </div>
+    <div class="form-group"><label>Teléfono</label><input id="e-telefono"/></div>
+    <div class="form-group"><label>Nueva contraseña (vacío para no cambiar)</label><input type="password" id="e-password" placeholder="••••••••"/></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-editar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updatePerfil()">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const esAdmin = {{ 'true' if session.get('rol') == 'administrador' else 'false' }};
+const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+let chartA = null;
+
+async function load(){
+  if(esAdmin){
+    await loadAdmin();
+  } else {
+    await loadMiembro();
+  }
+}
+
+async function loadAdmin(){
+  const [usuarios, entrenadores, rutinas, asistencias, membresias, asistMensual] = await Promise.all([
+    fetch('/api/usuarios').then(r=>r.ok?r.json():[]),
+    fetch('/api/entrenadores').then(r=>r.ok?r.json():[]),
+    fetch('/api/rutinas').then(r=>r.ok?r.json():[]),
+    fetch('/api/asistencia').then(r=>r.ok?r.json():[]),
+    fetch('/api/membresias').then(r=>r.ok?r.json():[]),
+    fetch('/api/reportes/asistencia-mensual').then(r=>r.ok?r.json():[]),
+  ]);
+
+  // Info admin
+  const nombre = "{{ session.get('nombre','Admin GymPro') }}";
+  const parts = nombre.split(' ');
+  document.getElementById('avatar').textContent = (parts[0]?.[0]||'')+(parts[1]?.[0]||'');
+  document.getElementById('p-nombre').textContent = nombre;
+  document.getElementById('p-email').textContent = "{{ session.get('email','admin@gympro.com') }}";
+  document.getElementById('e-nombre').value = parts[0]||'';
+  document.getElementById('e-apellido').value = parts[1]||'';
+
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('sa-miembros').textContent = usuarios.filter(u=>u.estado==='activo'&&u.rol==='miembro').length;
+  document.getElementById('sa-entrenadores').textContent = entrenadores.filter(e=>e.estado==='activo').length;
+  document.getElementById('sa-rutinas').textContent = rutinas.length;
+  document.getElementById('sa-membresias').textContent = membresias.filter(m=>m.estado==='activa').length;
+  document.getElementById('sa-hoy').textContent = asistencias.filter(a=>a.fecha===today).length;
+
+  // Ingresos
+  const activas = membresias.filter(m=>m.estado==='activa');
+  const totalIngresos = activas.reduce((s,m)=>s+Number(m.monto_pagado),0);
+  document.getElementById('ingresos-info').innerHTML = `
+    <div style="font-family:var(--font-display);font-size:36px;background:linear-gradient(135deg,var(--success),#00ff88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+      $${totalIngresos.toLocaleString('es-CO')}
+    </div>
+    <div style="font-size:12px;color:var(--muted2);margin-top:6px">Ingresos de membresías activas</div>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${activas.length}</div>
+        <div style="font-size:10px;color:var(--muted2)">MEMBRESÍAS ACTIVAS</div>
+      </div>
+      <div style="background:var(--surface);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--accent2)">${membresias.filter(m=>m.estado==='vencida').length}</div>
+        <div style="font-size:10px;color:var(--muted2)">VENCIDAS</div>
+      </div>
+    </div>`;
+
+  // Por vencer
+  const porVencer = activas.filter(m=>m.dias_restantes<=7).sort((a,b)=>a.dias_restantes-b.dias_restantes);
+  document.getElementById('vencer-lista').innerHTML = porVencer.length ?
+    porVencer.map(m=>`
+      <div class="vencer-item">
+        <div>
+          <div style="font-weight:600;font-size:13px">${m.miembro}</div>
+          <div style="font-size:11px;color:var(--muted2)">${m.tipo_membresia}</div>
+        </div>
+        <span class="badge badge-warn">⚠ ${m.dias_restantes}d</span>
+      </div>`).join('') :
+    '<div style="color:var(--muted2);text-align:center;padding:20px;font-size:13px">✅ Sin membresías por vencer</div>';
+
+  // Gráfica
+  const now = new Date();
+  const mesA = now.getMonth()+1, anioA = now.getFullYear();
+  const labels=[], vals=[];
+  for(let m=mesA-5;m<=mesA;m++){
+    const mm=m<=0?m+12:m, aa=m<=0?anioA-1:anioA;
+    labels.push(meses[mm]);
+    vals.push(asistMensual.filter(a=>a.mes==mm&&a.anio==aa).reduce((s,a)=>s+a.total_asistencias,0));
+  }
+  if(chartA) chartA.destroy();
+  chartA = new Chart(document.getElementById('chart-admin'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Asistencias',data:vals,
+      backgroundColor:'rgba(108,99,255,.3)',borderColor:'#6c63ff',borderWidth:2,borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a5a8a'},grid:{color:'rgba(255,255,255,.03)'}},
+              y:{ticks:{color:'#5a5a8a',stepSize:1},grid:{color:'rgba(255,255,255,.03)'},beginAtZero:true}}}
+  });
+}
+
+async function loadMiembro(){
+  const res = await fetch('/api/perfil');
+  if(!res.ok) return;
+  const {usuario,rutina,asistencia_mensual,membresia,fisica} = await res.json();
+  const u = usuario;
+
+  // Función para formatear fechas GMT
+  function fmtFecha(f){
+    if(!f) return '—';
+    if(f.includes('GMT')||f.includes('T')){
+      const d=new Date(f);
+      return d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+    return f;
+  }
+
+  const initials = (u.nombre[0]||'')+(u.apellido[0]||'');
+  document.getElementById('avatar').textContent = initials.toUpperCase();
+  document.getElementById('p-nombre').textContent = `${u.nombre} ${u.apellido}`;
+  document.getElementById('p-email').textContent = u.email;
+  document.getElementById('p-tel').textContent = u.telefono||'No registrado';
+  document.getElementById('p-reg').textContent = fmtFecha(u.fecha_registro);
+  document.getElementById('p-estado').innerHTML = `<span class="badge ${u.estado==='activo'?'badge-active':'badge-inactive'}">${u.estado}</span>`;
+  document.getElementById('p-email2').textContent = u.email;
+  document.getElementById('e-nombre').value = u.nombre;
+  document.getElementById('e-apellido').value = u.apellido;
+  document.getElementById('e-telefono').value = u.telefono||'';
+
+  // Membresía
+  const mi = document.getElementById('memb-info');
+  if(membresia){
+    mi.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div class="dias-ring"><div class="num">${membresia.dias_restantes}</div><div class="lbl">días</div></div>
+      <div>
+        <div style="font-family:var(--font-display);font-size:20px;color:var(--accent)">${membresia.tipo_membresia}</div>
+        <div style="font-size:12px;margin-top:4px">Vence: <strong>${fmtFecha(membresia.fecha_fin)}</strong></div>
+        <div style="font-size:12px">Monto: <strong style="color:var(--success)">$${Number(membresia.monto_pagado).toLocaleString('es-CO')}</strong></div>
+      </div></div>`;
+  } else {
+    mi.innerHTML='<p>Sin membresía activa. Contacta al administrador.</p>';
+  }
+
+  // Datos físicos
+  const df = document.getElementById('datos-fisicos-info');
+  if(fisica){
+    const imc = parseFloat(fisica.imc||0);
+    let imcColor, imcCat;
+    if(imc<18.5){imcColor='var(--info)';imcCat='Bajo peso';}
+    else if(imc<25){imcColor='var(--success)';imcCat='Peso normal';}
+    else if(imc<30){imcColor='var(--warning)';imcCat='Sobrepeso';}
+    else{imcColor='var(--danger)';imcCat='Obesidad';}
+    const objMap={bajar_peso:'Bajar de peso',ganar_musculo:'Ganar músculo',mantener:'Mantener peso',mejorar_salud:'Mejorar salud',aumentar_resistencia:'Aumentar resistencia'};
+    const nivMap={sedentario:'Sedentario',poco_activo:'Poco activo',activo:'Activo',muy_activo:'Muy activo'};
+    df.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center">
+          <div style="font-family:var(--font-display);font-size:28px;color:${imcColor}">${imc.toFixed(1)}</div>
+          <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">IMC — ${imcCat}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center">
+          <div style="font-family:var(--font-display);font-size:28px;color:var(--accent)">${fisica.peso_kg||'—'}</div>
+          <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Peso (kg)</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center">
+          <div style="font-family:var(--font-display);font-size:28px;color:var(--accent2)">${fisica.estatura_cm||'—'}</div>
+          <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Estatura (cm)</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center">
+          <div style="font-family:var(--font-display);font-size:28px;color:var(--accent3)">${fisica.edad||'—'}</div>
+          <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Edad (años)</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="badge badge-admin">🎯 ${objMap[fisica.objetivo]||fisica.objetivo||'—'}</span>
+        <span class="badge badge-trainer">⚡ ${nivMap[fisica.nivel_actividad]||fisica.nivel_actividad||'—'}</span>
+        ${fisica.enfermedades?`<span class="badge badge-warn">⚕ ${fisica.enfermedades}</span>`:''}
+        ${fisica.fumador?`<span class="badge badge-inactive">🚭 Fumador</span>`:''}
+      </div>`;
+  } else {
+    df.innerHTML='<p>Sin datos físicos registrados. Contacta al administrador para completar tu perfil.</p>';
+  }
+
+  // Rutina activa
+  const ri = document.getElementById('rutina-info');
+  if(rutina&&rutina.rutina){
+    const ejs = rutina.ejercicios||[];
+    const dias = {};
+    ejs.forEach(e=>{if(!dias[e.dia])dias[e.dia]=[];dias[e.dia].push(e);});
+    ri.innerHTML=`
+      <div style="font-family:var(--font-display);font-size:20px;margin-bottom:8px">${rutina.rutina}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="badge badge-admin">${rutina.objetivo}</span>
+        <span class="badge badge-member">${rutina.nivel}</span>
+        <span class="badge badge-trainer">${rutina.dias_por_semana} días/sem</span>
+      </div>
+      ${Object.keys(dias).sort().map(d=>`
+        <div class="rutina-dia">
+          <div style="font-family:var(--font-display);font-size:12px;color:var(--accent2);margin-bottom:8px">DÍA ${d}</div>
+          ${dias[d].map(e=>`
+            <div class="ejercicio-row">
+              <div><div style="font-weight:600;font-size:13px">${e.nombre}</div>${e.notas?`<div style="font-size:11px;color:var(--muted2)">${e.notas}</div>`:''}</div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="color:var(--accent);font-weight:700">${e.series}×${e.repeticiones}</div>
+                <div style="font-size:11px;color:var(--muted2)">⏱ ${e.descanso_seg}s</div>
+              </div>
+            </div>`).join('')}
+        </div>`).join('')}`;
+  } else {
+    ri.innerHTML='<p style="color:var(--muted2)">Sin rutina asignada.</p>';
+  }
+
+  // Gráfica
+  const labels = asistencia_mensual.map(a=>meses[a.mes]);
+  const vals   = asistencia_mensual.map(a=>a.total_asistencias);
+  if(chartA) chartA.destroy();
+  chartA = new Chart(document.getElementById('chart-asist'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Asistencias',data:vals,
+      backgroundColor:'rgba(108,99,255,.3)',borderColor:'#6c63ff',borderWidth:2,borderRadius:4}]},
+    options:{responsive:true,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a5a8a'},grid:{color:'rgba(255,255,255,.03)'}},
+              y:{ticks:{color:'#5a5a8a',stepSize:1},grid:{color:'rgba(255,255,255,.03)'},beginAtZero:true}}}
+  });
+}
+
+async function updatePerfil(){
+  const body={nombre:document.getElementById('e-nombre').value,apellido:document.getElementById('e-apellido').value,telefono:document.getElementById('e-telefono').value,password:document.getElementById('e-password').value};
+  const r=await fetch('/api/perfil',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('Perfil actualizado.');closeModal('modal-editar');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+load();
+</script>
+{% endblock %}

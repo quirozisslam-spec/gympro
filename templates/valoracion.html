@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Valoración Física — GymPro{% endblock %}
+{% block topbar_title %}VALORACIÓN FÍSICA{% endblock %}
+{% block extra_css %}
+<style>
+.seccion{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.seccion-titulo{font-family:var(--font-display);font-size:13px;letter-spacing:2px;color:var(--accent2);margin-bottom:16px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.imc-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;text-align:center}
+.foto-preview{width:120px;height:150px;object-fit:cover;border-radius:var(--radius-sm);border:2px solid var(--border2)}
+.foto-slot{width:120px;height:150px;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px;color:var(--muted);transition:all .2s}
+.foto-slot:hover{border-color:var(--accent);color:var(--accent)}
+.fotos-grid{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.foto-item{position:relative}
+.foto-delete{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+@media(max-width:768px){.grid-3,.grid-4{grid-template-columns:1fr 1fr}.grid-2{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+  <div>
+    <h1 style="font-family:var(--font-display);font-size:24px;background:linear-gradient(135deg,var(--text),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">VALORACIÓN FÍSICA</h1>
+    <p id="nombre-usuario" style="color:var(--muted2);font-size:13px">Cargando...</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary" onclick="history.back()">← Volver</button>
+    <button class="btn btn-primary" onclick="guardarValoracion()">💾 Guardar valoración</button>
+  </div>
+</div>
+
+<div id="alert-box" class="alert hidden"></div>
+
+<!-- EVALUADOR Y DATOS BÁSICOS -->
+<div class="seccion">
+  <div class="seccion-titulo">👤 Datos del Evaluador y del Miembro</div>
+  <div class="grid-3">
+    <div class="form-group"><label>Nombre del evaluador / entrenador *</label><input id="evaluador_nombre" placeholder="Ej: Carlos Mendoza"/></div>
+    <div class="form-group"><label>Fecha de valoración</label><input type="date" id="fecha_valoracion"/></div>
+    <div class="form-group"><label>Género</label>
+      <select id="genero"><option value="">Seleccionar</option><option value="masculino">Masculino</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+    </div>
+  </div>
+  <div class="grid-3">
+    <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="fecha_nacimiento" oninput="calcEdad()"/></div>
+    <div class="form-group"><label>Edad</label><div class="input-group"><input type="number" id="edad" placeholder="Auto"/><span class="input-suffix">años</span></div></div>
+    <div class="form-group"><label>Objetivo principal</label>
+      <select id="objetivo"><option value="bajar_peso">Bajar de peso</option><option value="ganar_musculo">Ganar músculo</option><option value="mantener">Mantener</option><option value="mejorar_salud">Mejorar salud</option><option value="aumentar_resistencia">Aumentar resistencia</option></select>
+    </div>
+  </div>
+</div>
+
+<!-- ANTROPOMETRÍA BÁSICA -->
+<div class="seccion">
+  <div class="seccion-titulo">📏 Datos Antropométricos Básicos</div>
+  <div class="grid-4">
+    <div class="form-group"><label>Estatura (cm)</label><input type="number" id="estatura_cm" step="0.1" placeholder="170" oninput="calcIMC()"/></div>
+    <div class="form-group"><label>Peso Total (kg)</label><input type="number" id="peso_kg" step="0.1" placeholder="70" oninput="calcIMC()"/></div>
+    <div class="form-group"><label>FC en Reposo (ppm)</label><input type="number" id="fc_reposo" placeholder="70"/></div>
+    <div class="form-group"><label>Presión Arterial (mmHg)</label><input id="presion_arterial" placeholder="120/80"/></div>
+  </div>
+  <div class="imc-box" id="imc-box" style="display:none;margin-top:8px">
+    <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">IMC Calculado Automáticamente</div>
+    <div style="font-family:var(--font-display);font-size:36px;margin:4px 0" id="imc-valor">—</div>
+    <div id="imc-cat" style="font-weight:600;font-size:14px">—</div>
+  </div>
+</div>
+
+<!-- COMPOSICIÓN CORPORAL -->
+<div class="seccion">
+  <div class="seccion-titulo">🏋 Composición Corporal</div>
+  <div class="grid-3">
+    <div class="form-group"><label>% Grasa Corporal Total</label><div class="input-group"><input type="number" id="porcentaje_grasa" step="0.1" placeholder="20"/><span class="input-suffix">%</span></div></div>
+    <div class="form-group"><label>Masa Muscular Total (kg)</label><input type="number" id="masa_muscular_kg" step="0.1" placeholder="35"/></div>
+    <div class="form-group"><label>Masa Grasa Total (kg)</label><input type="number" id="masa_grasa_kg" step="0.1" placeholder="15"/></div>
+    <div class="form-group"><label>Grasa Visceral (Escala 1-20)</label><input type="number" id="grasa_visceral" min="1" max="20" placeholder="5"/></div>
+    <div class="form-group"><label>% Agua Corporal Total</label><div class="input-group"><input type="number" id="porcentaje_agua" step="0.1" placeholder="55"/><span class="input-suffix">%</span></div></div>
+    <div class="form-group"><label>Tasa Metabólica Basal (Kcal)</label><input type="number" id="tasa_metabolica_basal" placeholder="1800"/></div>
+  </div>
+</div>
+
+<!-- PERÍMETROS CORPORALES -->
+<div class="seccion">
+  <div class="seccion-titulo">📐 Perímetros Corporales (cm)</div>
+
+  <div style="font-size:11px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Zona Superior</div>
+  <div class="grid-4">
+    <div class="form-group"><label>Cuello</label><input type="number" id="perimetro_cuello" step="0.1" placeholder="38"/></div>
+    <div class="form-group"><label>Hombros</label><input type="number" id="perimetro_hombros" step="0.1" placeholder="110"/></div>
+    <div class="form-group"><label>Pecho / Tórax</label><input type="number" id="perimetro_pecho" step="0.1" placeholder="95"/></div>
+    <div class="form-group"><label>Cintura (al ombligo)</label><input type="number" id="perimetro_cintura" step="0.1" placeholder="80"/></div>
+  </div>
+
+  <div style="font-size:11px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin:12px 0 10px">Cadera y Brazos</div>
+  <div class="grid-4">
+    <div class="form-group"><label>Cadera (máx. prominencia)</label><input type="number" id="perimetro_cadera" step="0.1" placeholder="95"/></div>
+    <div class="form-group"><label>Brazo Izq. Relajado</label><input type="number" id="perimetro_brazo_izq_rel" step="0.1" placeholder="30"/></div>
+    <div class="form-group"><label>Brazo Izq. Contraído</label><input type="number" id="perimetro_brazo_izq_con" step="0.1" placeholder="33"/></div>
+    <div class="form-group"></div>
+  </div>
+  <div class="grid-4">
+    <div class="form-group"></div>
+    <div class="form-group"><label>Brazo Der. Relajado</label><input type="number" id="perimetro_brazo_der_rel" step="0.1" placeholder="30"/></div>
+    <div class="form-group"><label>Brazo Der. Contraído</label><input type="number" id="perimetro_brazo_der_con" step="0.1" placeholder="33"/></div>
+    <div class="form-group"></div>
+  </div>
+
+  <div style="font-size:11px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin:12px 0 10px">Piernas</div>
+  <div class="grid-4">
+    <div class="form-group"><label>Muslo Izq. Parte Alta</label><input type="number" id="perimetro_muslo_izq_alt" step="0.1" placeholder="55"/></div>
+    <div class="form-group"><label>Muslo Izq. Parte Media</label><input type="number" id="perimetro_muslo_izq_med" step="0.1" placeholder="48"/></div>
+    <div class="form-group"><label>Muslo Der. Parte Alta</label><input type="number" id="perimetro_muslo_der_alt" step="0.1" placeholder="55"/></div>
+    <div class="form-group"><label>Muslo Der. Parte Media</label><input type="number" id="perimetro_muslo_der_med" step="0.1" placeholder="48"/></div>
+  </div>
+  <div class="grid-4">
+    <div class="form-group"><label>Pantorrilla Izquierda</label><input type="number" id="perimetro_pantorrilla_izq" step="0.1" placeholder="36"/></div>
+    <div class="form-group"><label>Pantorrilla Derecha</label><input type="number" id="perimetro_pantorrilla_der" step="0.1" placeholder="36"/></div>
+    <div class="form-group"></div>
+    <div class="form-group"></div>
+  </div>
+</div>
+
+<!-- SALUD -->
+<div class="seccion">
+  <div class="seccion-titulo">🏥 Información de Salud</div>
+  <div class="grid-2">
+    <div class="form-group"><label>Enfermedades / Condiciones médicas</label><textarea id="enfermedades" rows="2" placeholder="Dejar vacío si ninguna"></textarea></div>
+    <div class="form-group"><label>Lesiones previas o actuales</label><textarea id="lesiones" rows="2" placeholder="Dejar vacío si ninguna"></textarea></div>
+  </div>
+  <div class="grid-3">
+    <div class="form-group"><label>Medicamentos</label><input id="medicamentos" placeholder="Opcional"/></div>
+    <div class="form-group"><label>Nivel de actividad</label>
+      <select id="nivel_actividad"><option value="sedentario">Sedentario</option><option value="poco_activo">Poco activo</option><option value="activo">Activo</option><option value="muy_activo">Muy activo</option></select>
+    </div>
+    <div class="form-group"><label>¿Es fumador?</label><select id="fumador"><option value="0">No</option><option value="1">Sí</option></select></div>
+  </div>
+  <div class="form-group"><label>Observaciones generales</label><textarea id="observaciones" rows="2" placeholder="Notas del evaluador..."></textarea></div>
+</div>
+
+<!-- FOTOS -->
+<div class="seccion">
+  <div class="seccion-titulo">📸 Fotos de Valoración</div>
+  <p style="font-size:13px;color:var(--muted2);margin-bottom:14px">Sube fotos de frente, espalda y laterales para seguimiento del progreso.</p>
+  <div class="fotos-grid" id="fotos-existentes"></div>
+  <div style="margin-top:16px">
+    <div class="form-group"><label>Tipo de foto</label>
+      <select id="tipo-foto" style="width:200px">
+        <option value="frente">Frente</option>
+        <option value="espalda">Espalda</option>
+        <option value="lateral_izq">Lateral Izquierdo</option>
+        <option value="lateral_der">Lateral Derecho</option>
+        <option value="otro">Otra</option>
+      </select>
+    </div>
+    <label style="cursor:pointer">
+      <div class="foto-slot" id="foto-slot">📷<br><span style="font-size:12px;margin-top:4px;display:block">Subir foto</span></div>
+      <input type="file" id="foto-input" accept="image/*" style="display:none" onchange="subirFoto()"/>
+    </label>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+  <button class="btn btn-secondary" onclick="history.back()">Cancelar</button>
+  <button class="btn btn-primary" onclick="guardarValoracion()">💾 Guardar Valoración Completa</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const uid = {{ uid }};
+
+function calcEdad(){
+  const fn=document.getElementById('fecha_nacimiento').value;
+  if(!fn)return;
+  const hoy=new Date(), nac=new Date(fn);
+  document.getElementById('edad').value=Math.floor((hoy-nac)/(365.25*24*3600*1000));
+}
+
+function calcIMC(){
+  const p=parseFloat(document.getElementById('peso_kg').value);
+  const e=parseFloat(document.getElementById('estatura_cm').value);
+  if(!p||!e){document.getElementById('imc-box').style.display='none';return;}
+  const imc=p/Math.pow(e/100,2);
+  document.getElementById('imc-box').style.display='block';
+  document.getElementById('imc-valor').textContent=imc.toFixed(1);
+  let cat,color;
+  if(imc<18.5){cat='Bajo peso';color='var(--info)';}
+  else if(imc<25){cat='Peso normal';color='var(--success)';}
+  else if(imc<30){cat='Sobrepeso';color='var(--warning)';}
+  else{cat='Obesidad';color='var(--danger)';}
+  document.getElementById('imc-cat').style.color=color;
+  document.getElementById('imc-cat').textContent=cat;
+  document.getElementById('imc-valor').style.color=color;
+}
+
+function getVal(id){const el=document.getElementById(id);return el?el.value||null:null;}
+
+async function guardarValoracion(){
+  const evaluador=document.getElementById('evaluador_nombre').value.trim();
+  if(!evaluador)return showAlert('El nombre del evaluador es obligatorio.','error');
+
+  const body={
+    evaluador_nombre:evaluador,
+    fecha_valoracion:getVal('fecha_valoracion'),
+    genero:getVal('genero'),
+    fecha_nacimiento:getVal('fecha_nacimiento'),
+    edad:getVal('edad'),
+    estatura_cm:getVal('estatura_cm'),
+    peso_kg:getVal('peso_kg'),
+    fc_reposo:getVal('fc_reposo'),
+    presion_arterial:getVal('presion_arterial'),
+    porcentaje_grasa:getVal('porcentaje_grasa'),
+    masa_muscular_kg:getVal('masa_muscular_kg'),
+    masa_grasa_kg:getVal('masa_grasa_kg'),
+    grasa_visceral:getVal('grasa_visceral'),
+    porcentaje_agua:getVal('porcentaje_agua'),
+    tasa_metabolica_basal:getVal('tasa_metabolica_basal'),
+    perimetro_cuello:getVal('perimetro_cuello'),
+    perimetro_hombros:getVal('perimetro_hombros'),
+    perimetro_pecho:getVal('perimetro_pecho'),
+    perimetro_cintura:getVal('perimetro_cintura'),
+    perimetro_cadera:getVal('perimetro_cadera'),
+    perimetro_brazo_izq_rel:getVal('perimetro_brazo_izq_rel'),
+    perimetro_brazo_izq_con:getVal('perimetro_brazo_izq_con'),
+    perimetro_brazo_der_rel:getVal('perimetro_brazo_der_rel'),
+    perimetro_brazo_der_con:getVal('perimetro_brazo_der_con'),
+    perimetro_muslo_izq_alt:getVal('perimetro_muslo_izq_alt'),
+    perimetro_muslo_izq_med:getVal('perimetro_muslo_izq_med'),
+    perimetro_muslo_der_alt:getVal('perimetro_muslo_der_alt'),
+    perimetro_muslo_der_med:getVal('perimetro_muslo_der_med'),
+    perimetro_pantorrilla_izq:getVal('perimetro_pantorrilla_izq'),
+    perimetro_pantorrilla_der:getVal('perimetro_pantorrilla_der'),
+    enfermedades:getVal('enfermedades'),
+    lesiones:getVal('lesiones'),
+    medicamentos:getVal('medicamentos'),
+    fumador:getVal('fumador'),
+    objetivo:getVal('objetivo'),
+    nivel_actividad:getVal('nivel_actividad'),
+    observaciones:getVal('observaciones'),
+  };
+
+  const r=await fetch(`/api/valoracion/${uid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('✅ Valoración guardada correctamente.');}
+  else showAlert(d.error||'Error al guardar.','error');
+}
+
+async function subirFoto(){
+  const input=document.getElementById('foto-input');
+  const tipo=document.getElementById('tipo-foto').value;
+  if(!input.files[0])return;
+  const fd=new FormData();
+  fd.append('foto',input.files[0]);
+  fd.append('tipo',tipo);
+  const slot=document.getElementById('foto-slot');
+  slot.textContent='⏳';
+  const r=await fetch(`/api/valoracion/${uid}/foto`,{method:'POST',body:fd});
+  const d=await r.json();
+  if(r.ok){showAlert('Foto subida.');input.value='';slot.innerHTML='📷<br><span style="font-size:12px;margin-top:4px;display:block">Subir foto</span>';loadFotos();}
+  else{showAlert(d.error||'Error','error');slot.innerHTML='📷<br><span style="font-size:12px;margin-top:4px;display:block">Subir foto</span>';}
+}
+
+async function deleteFoto(fid){
+  if(!confirm('¿Eliminar esta foto?'))return;
+  const r=await fetch(`/api/valoracion/${uid}/foto/${fid}`,{method:'DELETE'});
+  if(r.ok){showAlert('Foto eliminada.');loadFotos();}
+}
+
+const tipoLabel={frente:'Frente',espalda:'Espalda',lateral_izq:'Lat. Izq.',lateral_der:'Lat. Der.',otro:'Otra'};
+
+async function loadFotos(){
+  const data=await fetch(`/api/valoracion/${uid}`).then(r=>r.ok?r.json():null);
+  if(!data||!data.fotos)return;
+  document.getElementById('fotos-existentes').innerHTML=data.fotos.map(f=>`
+    <div class="foto-item">
+      <img src="/static/${f.ruta_archivo}" class="foto-preview" alt="${f.tipo}"/>
+      <button class="foto-delete" onclick="deleteFoto(${f.id})" title="Eliminar">×</button>
+      <div style="font-size:10px;color:var(--muted2);text-align:center;margin-top:4px">${tipoLabel[f.tipo]||f.tipo}</div>
+    </div>`).join('');
+}
+
+async function load(){
+  const r=await fetch(`/api/usuarios/${uid}`).then(r=>r.ok?r.json():null);
+  if(r) document.getElementById('nombre-usuario').textContent=`${r.nombre} ${r.apellido} — CC: ${r.cedula||'—'}`;
+
+  const val=await fetch(`/api/valoracion/${uid}`).then(r=>r.ok?r.json():null);
+  if(!val)return;
+
+  const campos=['evaluador_nombre','fecha_valoracion','genero','edad','estatura_cm','peso_kg',
+    'fc_reposo','presion_arterial','porcentaje_grasa','masa_muscular_kg','masa_grasa_kg',
+    'grasa_visceral','porcentaje_agua','tasa_metabolica_basal','perimetro_cuello',
+    'perimetro_hombros','perimetro_pecho','perimetro_cintura','perimetro_cadera',
+    'perimetro_brazo_izq_rel','perimetro_brazo_izq_con','perimetro_brazo_der_rel',
+    'perimetro_brazo_der_con','perimetro_muslo_izq_alt','perimetro_muslo_izq_med',
+    'perimetro_muslo_der_alt','perimetro_muslo_der_med','perimetro_pantorrilla_izq',
+    'perimetro_pantorrilla_der','enfermedades','lesiones','medicamentos','fumador',
+    'objetivo','nivel_actividad','observaciones'];
+
+  campos.forEach(c=>{
+    const el=document.getElementById(c);
+    if(el&&val[c]!=null) el.value=val[c];
+  });
+
+  // fecha_nacimiento
+  if(val.fecha_nacimiento){
+    const fn=document.getElementById('fecha_nacimiento');
+    if(fn) fn.value=val.fecha_nacimiento;
+  }
+
+  calcIMC();
+  loadFotos();
+}
+
+// Fecha de hoy por defecto
+document.getElementById('fecha_valoracion').value=new Date().toISOString().split('T')[0];
+load();
+</script>
+{% endblock %}

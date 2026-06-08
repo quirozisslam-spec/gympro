@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Rutinas — GymPro{% endblock %}
+{% block extra_css %}
+<style>
+.rutina-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .2s}
+.rutina-card:hover{border-color:var(--accent)}
+.rutina-card h3{font-family:var(--font-display);font-size:16px;letter-spacing:1px;margin-bottom:8px}
+.rutina-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.rutina-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.rutinas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.ejercicio-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--black);border-radius:var(--radius);margin-bottom:6px}
+.ej-num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--black);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.dia-tab{padding:6px 14px;border-radius:20px;background:var(--black);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:12px;font-weight:600;transition:all .18s}
+.dia-tab.active{background:var(--accent);color:var(--black);border-color:var(--accent)}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+  <div><h1>RUTINAS</h1><p>Programas de entrenamiento personalizados</p></div>
+  {% if session.get('rol') in ['administrador','entrenador'] %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-secondary" onclick="openModal('modal-asignacion')">Asignar rutina</button>
+    <button class="btn btn-primary" onclick="openModal('modal-nueva')">+ Nueva rutina</button>
+  </div>
+  {% endif %}
+</div>
+
+<div id="alert-box" class="alert hidden"></div>
+
+<!-- FILTROS -->
+<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+  <input class="search-input" type="text" id="search" placeholder="Buscar rutina…" oninput="filterRutinas()" style="width:200px"/>
+  <select class="search-input" id="filtro-nivel" onchange="filterRutinas()" style="width:150px">
+    <option value="">Todos los niveles</option>
+    <option value="principiante">Principiante</option>
+    <option value="intermedio">Intermedio</option>
+    <option value="avanzado">Avanzado</option>
+  </select>
+  <select class="search-input" id="filtro-objetivo" onchange="filterRutinas()" style="width:160px">
+    <option value="">Todos los objetivos</option>
+    <option value="fuerza">Fuerza</option>
+    <option value="cardio">Cardio</option>
+    <option value="perdida_peso">Pérdida de peso</option>
+    <option value="ganancia_muscular">Ganancia muscular</option>
+    <option value="flexibilidad">Flexibilidad</option>
+    <option value="general">General</option>
+  </select>
+</div>
+
+<!-- GRID RUTINAS -->
+<div class="rutinas-grid" id="rutinas-grid"></div>
+
+<!-- MODAL DETALLE RUTINA -->
+<div class="modal-overlay" id="modal-detalle">
+  <div class="modal" style="width:600px">
+    <div class="modal-header"><h2 id="d-nombre">—</h2><button class="modal-close" onclick="closeModal('modal-detalle')">✕</button></div>
+    <div id="d-meta" style="margin-bottom:16px"></div>
+    <div id="d-dias" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap"></div>
+    <div id="d-ejercicios"></div>
+    {% if session.get('rol') in ['administrador','entrenador'] %}
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="card-title" style="font-size:14px">AGREGAR EJERCICIO</div>
+      <div class="grid-2">
+        <div class="form-group"><label>Nombre</label><input id="ej-nombre" placeholder="Ej: Sentadilla"/></div>
+        <div class="form-group"><label>Día</label><select id="ej-dia"></select></div>
+      </div>
+      <div class="grid-3">
+        <div class="form-group"><label>Series</label><input type="number" id="ej-series" value="3" min="1"/></div>
+        <div class="form-group"><label>Repeticiones</label><input id="ej-reps" value="10"/></div>
+        <div class="form-group"><label>Descanso (seg)</label><input type="number" id="ej-descanso" value="60"/></div>
+      </div>
+      <div class="form-group"><label>Notas</label><input id="ej-notas" placeholder="Opcional"/></div>
+      <button class="btn btn-primary btn-sm" onclick="addEjercicio()">+ Agregar ejercicio</button>
+    </div>
+    {% endif %}
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-detalle')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA RUTINA -->
+{% if session.get('rol') in ['administrador','entrenador'] %}
+<div class="modal-overlay" id="modal-nueva">
+  <div class="modal" style="width:560px">
+    <div class="modal-header"><h2>NUEVA RUTINA</h2><button class="modal-close" onclick="closeModal('modal-nueva')">✕</button></div>
+    <div class="form-group"><label>Nombre</label><input id="n-nombre" placeholder="Ej: Full Body 4 semanas"/></div>
+    <div class="form-group"><label>Descripción</label><textarea id="n-desc" rows="2"></textarea></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Objetivo</label>
+        <select id="n-obj"><option value="general">General</option><option value="fuerza">Fuerza</option><option value="cardio">Cardio</option><option value="perdida_peso">Pérdida de peso</option><option value="ganancia_muscular">Ganancia muscular</option><option value="flexibilidad">Flexibilidad</option></select></div>
+      <div class="form-group"><label>Nivel</label>
+        <select id="n-nivel"><option value="principiante">Principiante</option><option value="intermedio">Intermedio</option><option value="avanzado">Avanzado</option></select></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Duración (semanas)</label><input type="number" id="n-semanas" value="4" min="1"/></div>
+      <div class="form-group"><label>Días por semana</label><input type="number" id="n-dias" value="3" min="1" max="7"/></div>
+    </div>
+    <div class="form-group"><label>Entrenador</label><select id="n-entrenador"></select></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nueva')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createRutina()">Crear Rutina</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ASIGNACIÓN -->
+<div class="modal-overlay" id="modal-asignacion">
+  <div class="modal">
+    <div class="modal-header"><h2>ASIGNAR RUTINA</h2><button class="modal-close" onclick="closeModal('modal-asignacion')">✕</button></div>
+    <div class="form-group"><label>Miembro</label><select id="a-usuario"></select></div>
+    <div class="form-group"><label>Rutina</label><select id="a-rutina"></select></div>
+    <div class="form-group"><label>Entrenador</label><select id="a-entrenador"></select></div>
+    <div class="form-group"><label>Observaciones</label><textarea id="a-obs" rows="2"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-asignacion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="asignar()">Asignar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allRutinas=[],selRutinaId=null;
+const nivelMap={principiante:'badge-member',intermedio:'badge-trainer',avanzado:'badge-admin'};
+function badge(v,t){return`<span class="badge ${nivelMap[v]||'badge-member'}">${t||v}</span>`}
+
+async function load(){
+  const [rutinas,entrenadores,usuarios]=await Promise.all([
+    fetch('/api/rutinas').then(r=>r.ok?r.json():[]),
+    fetch('/api/entrenadores').then(r=>r.ok?r.json():[]),
+    fetch('/api/usuarios').then(r=>r.ok?r.json():[]),
+  ]);
+  allRutinas=rutinas;
+  renderRutinas(rutinas);
+  const optE=entrenadores.filter(e=>e.estado==='activo').map(e=>`<option value="${e.id}">${e.nombre} ${e.apellido}</option>`).join('');
+  const ne=document.getElementById('n-entrenador');if(ne)ne.innerHTML=optE;
+  const ae=document.getElementById('a-entrenador');if(ae)ae.innerHTML=optE;
+  const ar=document.getElementById('a-rutina');if(ar)ar.innerHTML=rutinas.map(r=>`<option value="${r.id}">${r.nombre}</option>`).join('');
+  const au=document.getElementById('a-usuario');if(au)au.innerHTML=usuarios.filter(u=>u.estado==='activo'&&u.rol==='miembro').map(u=>`<option value="${u.id}">${u.nombre} ${u.apellido}</option>`).join('');
+}
+
+function renderRutinas(data){
+  const g=document.getElementById('rutinas-grid');
+  g.innerHTML=data.length?data.map(r=>`
+    <div class="rutina-card">
+      <h3>${r.nombre}</h3>
+      <div class="rutina-meta">
+        ${badge(r.nivel)}
+        <span class="badge badge-admin">${r.objetivo}</span>
+        <span class="badge badge-trainer">${r.dias_por_semana}d/sem</span>
+      </div>
+      ${r.descripcion?`<p style="color:var(--muted);font-size:12px;margin-bottom:8px">${r.descripcion}</p>`:''}
+      <div class="rutina-footer">
+        <span style="font-size:11px;color:var(--muted)">${r.duracion_semanas} semanas · ${r.entrenador_nombre||'—'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="verDetalle(${r.id})">Ver ejercicios</button>
+      </div>
+    </div>`).join(''):'<p style="color:var(--muted)">No hay rutinas creadas.</p>';
+}
+
+function filterRutinas(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const n=document.getElementById('filtro-nivel').value;
+  const o=document.getElementById('filtro-objetivo').value;
+  renderRutinas(allRutinas.filter(r=>
+    r.nombre.toLowerCase().includes(q)&&(!n||r.nivel===n)&&(!o||r.objetivo===o)
+  ));
+}
+
+async function verDetalle(id){
+  selRutinaId=id;
+  const r=await fetch(`/api/rutinas/${id}`).then(x=>x.ok?x.json():null);
+  if(!r)return;
+  document.getElementById('d-nombre').textContent=r.nombre;
+  document.getElementById('d-meta').innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${badge(r.nivel)}<span class="badge badge-admin">${r.objetivo}</span>
+      <span class="badge badge-trainer">${r.dias_por_semana} días/semana</span>
+      <span class="badge badge-member">${r.duracion_semanas} semanas</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px">Entrenador: ${r.entrenador_nombre}</p>`;
+  renderEjercicios(r);
+  const diasOpts=Array.from({length:r.dias_por_semana||3},(_,i)=>`<option value="${i+1}">Día ${i+1}</option>`).join('');
+  const ejD=document.getElementById('ej-dia');if(ejD)ejD.innerHTML=diasOpts;
+  openModal('modal-detalle');
+}
+
+function renderEjercicios(r){
+  const dias={};
+  (r.ejercicios||[]).forEach(e=>{if(!dias[e.dia])dias[e.dia]=[];dias[e.dia].push(e);});
+  const dKeys=Object.keys(dias).sort();
+  document.getElementById('d-dias').innerHTML=dKeys.map(d=>`<button class="dia-tab ${d===dKeys[0]?'active':''}" onclick="showDia(this,'${d}')" data-dia="${d}">Día ${d}</button>`).join('');
+  const ejHtml=dKeys.map(d=>`
+    <div class="dia-content" id="dia-${d}" ${d!==dKeys[0]?'style="display:none"':''}>
+      ${dias[d].map((e,i)=>`
+        <div class="ejercicio-row">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="ej-num">${i+1}</div>
+            <div><div style="font-weight:600;font-size:13px">${e.nombre}</div>${e.notas?`<div style="font-size:11px;color:var(--muted)">${e.notas}</div>`:''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="color:var(--accent);font-weight:700;font-size:13px">${e.series}×${e.repeticiones}</div>
+            <div style="font-size:11px;color:var(--muted)">⏱ ${e.descanso_seg}s</div>
+            {% if session.get('rol') in ['administrador','entrenador'] %}<button class="btn btn-danger btn-sm" style="margin-top:4px" onclick="delEjercicio(${e.id})">✕</button>{% endif %}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  document.getElementById('d-ejercicios').innerHTML=ejHtml||'<p style="color:var(--muted)">Sin ejercicios agregados.</p>';
+}
+
+function showDia(btn,dia){
+  document.querySelectorAll('.dia-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.dia-content').forEach(d=>d.style.display='none');
+  btn.classList.add('active');
+  const el=document.getElementById(`dia-${dia}`);if(el)el.style.display='block';
+}
+
+async function addEjercicio(){
+  if(!selRutinaId)return;
+  const body={nombre:document.getElementById('ej-nombre').value,dia:parseInt(document.getElementById('ej-dia').value),series:parseInt(document.getElementById('ej-series').value),repeticiones:document.getElementById('ej-reps').value,descanso_seg:parseInt(document.getElementById('ej-descanso').value),notas:document.getElementById('ej-notas').value};
+  if(!body.nombre)return showAlert('Escribe el nombre del ejercicio','error');
+  const r=await fetch(`/api/ejercicios/${selRutinaId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok){document.getElementById('ej-nombre').value='';document.getElementById('ej-notas').value='';verDetalle(selRutinaId);showAlert('Ejercicio agregado.');}
+  else showAlert('Error al agregar.','error');
+}
+
+async function delEjercicio(eid){
+  if(!confirm('¿Eliminar este ejercicio?'))return;
+  const r=await fetch(`/api/ejercicios/${eid}`,{method:'DELETE'});
+  if(r.ok){verDetalle(selRutinaId);showAlert('Ejercicio eliminado.');}
+}
+
+async function createRutina(){
+  const body={nombre:document.getElementById('n-nombre').value,descripcion:document.getElementById('n-desc').value,objetivo:document.getElementById('n-obj').value,nivel:document.getElementById('n-nivel').value,duracion_semanas:parseInt(document.getElementById('n-semanas').value),dias_por_semana:parseInt(document.getElementById('n-dias').value),entrenador_id:parseInt(document.getElementById('n-entrenador').value),ejercicios:[]};
+  if(!body.nombre)return showAlert('Escribe el nombre','error');
+  const r=await fetch('/api/rutinas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('Rutina creada.');closeModal('modal-nueva');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function asignar(){
+  const body={usuario_id:parseInt(document.getElementById('a-usuario').value),rutina_id:parseInt(document.getElementById('a-rutina').value),entrenador_id:parseInt(document.getElementById('a-entrenador').value),observaciones:document.getElementById('a-obs').value};
+  const r=await fetch('/api/asignaciones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('Rutina asignada correctamente.');closeModal('modal-asignacion');}
+  else showAlert(d.error||'Error','error');
+}
+
+load();
+</script>
+{% endblock %}

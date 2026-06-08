@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Membresías — GymPro{% endblock %}
+{% block topbar_title %}MEMBRESÍAS{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+  <div><h1>MEMBRESÍAS</h1><p>Gestión de planes y pagos</p></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary" onclick="openModal('modal-tipos')">⚙ Tipos de Plan</button>
+    <button class="btn btn-primary" onclick="openModal('modal-nueva')">+ Nueva Membresía</button>
+  </div>
+</div>
+<div id="alert-box" class="alert hidden"></div>
+<div class="stats-grid" style="margin-bottom:20px" id="stats-box"></div>
+<div class="card">
+  <div class="toolbar">
+    <div class="search-wrap" style="position:relative">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search" placeholder="Buscar miembro..." oninput="filterTable()" style="padding-left:38px;width:240px"/>
+    </div>
+    <select id="filtro-estado" onchange="filterTable()" style="padding:10px 14px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius-sm);font-size:13px;outline:none">
+      <option value="">Todos</option><option value="activa">Activa</option><option value="vencida">Vencida</option><option value="cancelada">Cancelada</option><option value="congelada">Congelada</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Miembro</th><th>Tipo</th><th>Inicio</th><th>Vence</th><th>Días</th><th>Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL NUEVA -->
+<div class="modal-overlay" id="modal-nueva">
+  <div class="modal">
+    <div class="modal-header"><h2>NUEVA MEMBRESÍA</h2><button class="modal-close" onclick="closeModal('modal-nueva')">✕</button></div>
+    <div class="form-group"><label>Miembro *</label><select id="n-usuario"></select></div>
+    <div class="form-group"><label>Tipo de plan *</label><select id="n-tipo" onchange="updatePreview()"></select></div>
+    <div id="nueva-preview" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+      <div style="font-family:var(--font-display);font-size:22px;color:var(--accent)" id="nueva-precio">—</div>
+      <div style="font-size:12px;color:var(--muted2)" id="nueva-desc">—</div>
+    </div>
+    <div class="form-group"><label>Monto cobrado (COP) *</label><div class="input-group"><input type="number" id="n-monto"/><span class="input-suffix">COP</span></div></div>
+    <div class="form-group"><label>Observaciones</label><textarea id="n-obs" rows="2" placeholder="Opcional"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nueva')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createMembresia()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TIPOS DE PLAN -->
+<div class="modal-overlay" id="modal-tipos">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>TIPOS DE PLAN</h2><button class="modal-close" onclick="closeModal('modal-tipos')">✕</button></div>
+    <div id="tipos-lista" style="margin-bottom:16px"></div>
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:16px">
+      <div style="font-family:var(--font-display);font-size:12px;letter-spacing:1px;color:var(--accent2);margin-bottom:12px">AGREGAR NUEVO TIPO</div>
+      <div class="form-row">
+        <div class="form-group"><label>Nombre *</label><input id="t-nombre" placeholder="Ej: Mensual VIP"/></div>
+        <div class="form-group"><label>Duración (días) *</label><input type="number" id="t-dias" placeholder="30"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Precio (COP) *</label><input type="number" id="t-precio" placeholder="80000"/></div>
+        <div class="form-group"><label>Descripción</label><input id="t-desc" placeholder="Descripción del plan"/></div>
+      </div>
+      <button class="btn btn-primary" onclick="createTipo()">+ Agregar Tipo</button>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-tipos');load()">Cerrar</button></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allMemb=[], tipos=[], usuarios=[];
+
+function fmtF(f){if(!f)return'—';if(f.includes('GMT')||f.includes('T')){const d=new Date(f);return d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});}return f;}
+function estadoBadge(e){const m={activa:'badge-active',vencida:'badge-inactive',cancelada:'badge-inactive',congelada:'badge-info'};const i={activa:'✓',vencida:'✗',cancelada:'✗',congelada:'❄'};return`<span class="badge ${m[e]||''}">${i[e]||''} ${e}</span>`;}
+
+async function load(){
+  [allMemb,tipos,usuarios]=await Promise.all([
+    fetch('/api/membresias').then(r=>r.ok?r.json():[]),
+    fetch('/api/membresias/tipos').then(r=>r.ok?r.json():[]),
+    fetch('/api/usuarios').then(r=>r.ok?r.json():[]),
+  ]);
+  const miembros=usuarios.filter(u=>u.estado==='activo'&&u.rol==='miembro');
+  document.getElementById('n-usuario').innerHTML=miembros.map(u=>`<option value="${u.id}">${u.nombre} ${u.apellido} — CC:${u.cedula||''}</option>`).join('');
+  document.getElementById('n-tipo').innerHTML=tipos.map(t=>`<option value="${t.id}">${t.nombre} — $${Number(t.precio).toLocaleString('es-CO')}</option>`).join('');
+  updatePreview();
+  renderStats();
+  renderTable(allMemb);
+  renderTipos();
+}
+
+function renderStats(){
+  const activas=allMemb.filter(m=>m.estado==='activa').length;
+  const congeladas=allMemb.filter(m=>m.estado==='congelada').length;
+  const ingresos=allMemb.filter(m=>m.estado==='activa').reduce((s,m)=>s+Number(m.monto_pagado),0);
+  const vencer=allMemb.filter(m=>m.estado==='activa'&&m.dias_restantes<=7).length;
+  document.getElementById('stats-box').innerHTML=`
+    <div class="stat-card"><div class="stat-icon">💳</div><div class="stat-value">${activas}</div><div class="stat-label">Activas</div></div>
+    <div class="stat-card green"><div class="stat-icon">💰</div><div class="stat-value">$${Math.round(ingresos/1000)}K</div><div class="stat-label">Ingresos activos</div></div>
+    <div class="stat-card red"><div class="stat-icon">⚠</div><div class="stat-value">${vencer}</div><div class="stat-label">Vencen pronto</div></div>
+    <div class="stat-card cyan"><div class="stat-icon">❄</div><div class="stat-value">${congeladas}</div><div class="stat-label">Congeladas</div></div>`;
+}
+
+function renderTable(data){
+  document.getElementById('tbody').innerHTML=data.map(m=>`
+    <tr>
+      <td><strong>${m.miembro}</strong><div style="font-size:11px;color:var(--muted2)">${m.cedula||''}</div></td>
+      <td>${m.tipo_membresia}</td>
+      <td style="font-size:12px;color:var(--muted2)">${fmtF(m.fecha_inicio)}</td>
+      <td style="font-size:12px;color:var(--muted2)">${fmtF(m.fecha_fin)}</td>
+      <td><span style="color:${m.dias_restantes<=7?'var(--danger)':'var(--text)'};font-weight:600">${m.dias_restantes}d</span></td>
+      <td style="color:var(--success)">$${Number(m.monto_pagado).toLocaleString('es-CO')}</td>
+      <td>${estadoBadge(m.estado)}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${m.estado==='activa'?`<button class="btn btn-secondary btn-sm" onclick="congelar(${m.id})">❄ Congelar</button><button class="btn btn-danger btn-sm" onclick="cancelar(${m.id})">× Cancelar</button>`:''}
+        ${m.estado==='congelada'?`<button class="btn btn-success btn-sm" onclick="descongelar(${m.id})">▶ Descongelar</button>`:''}
+        ${m.estado==='cancelada'||m.estado==='vencida'?`<button class="btn btn-primary btn-sm" onclick="reactivar(${m.id})">↺ Reactivar</button>`:''}
+      </div></td>
+    </tr>`).join('');
+}
+
+function renderTipos(){
+  const el=document.getElementById('tipos-lista');
+  if(!el)return;
+  el.innerHTML=`<div style="font-family:var(--font-display);font-size:12px;letter-spacing:1px;color:var(--muted2);margin-bottom:10px">TIPOS ACTUALES</div>`+
+    tipos.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-weight:600">${t.nombre}</div>
+        <div style="font-size:12px;color:var(--muted2)">$${Number(t.precio).toLocaleString('es-CO')} · ${t.duracion_dias} días</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteTipo(${t.id})">× Eliminar</button>
+    </div>`).join('');
+}
+
+function filterTable(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const e=document.getElementById('filtro-estado').value;
+  renderTable(allMemb.filter(m=>`${m.miembro} ${m.cedula||''}`.toLowerCase().includes(q)&&(!e||m.estado===e)));
+}
+
+function updatePreview(){
+  const sel=document.getElementById('n-tipo');
+  const t=tipos.find(x=>x.id==sel.value);
+  if(t){document.getElementById('nueva-precio').textContent='$'+Number(t.precio).toLocaleString('es-CO')+' / '+t.duracion_dias+'d';document.getElementById('nueva-desc').textContent=t.descripcion||'';document.getElementById('n-monto').value=t.precio;document.getElementById('nueva-preview').style.display='block';}
+  else{document.getElementById('nueva-preview').style.display='none';}
+}
+
+async function createMembresia(){
+  const uid=document.getElementById('n-usuario').value;
+  const tid=document.getElementById('n-tipo').value;
+  const monto=document.getElementById('n-monto').value;
+  if(!uid||!tid||!monto)return showAlert('Completa todos los campos.','error');
+  const r=await fetch('/api/membresias',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario_id:uid,tipo_id:tid,monto_pagado:monto,observaciones:document.getElementById('n-obs').value})});
+  const d=await r.json();
+  if(r.ok){showAlert('Membresía registrada.');closeModal('modal-nueva');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function createTipo(){
+  const nombre=document.getElementById('t-nombre').value.trim();
+  const dias=document.getElementById('t-dias').value;
+  const precio=document.getElementById('t-precio').value;
+  if(!nombre||!dias||!precio)return showAlert('Nombre, días y precio son obligatorios.','error');
+  const r=await fetch('/api/membresias/tipos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,duracion_dias:dias,precio,descripcion:document.getElementById('t-desc').value})});
+  const d=await r.json();
+  if(r.ok){showAlert('Tipo creado.');['t-nombre','t-dias','t-precio','t-desc'].forEach(id=>{document.getElementById(id).value='';});
+    const nuevos=await fetch('/api/membresias/tipos').then(r=>r.ok?r.json():[]);tipos=nuevos;renderTipos();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function deleteTipo(id){
+  if(!confirm('¿Eliminar este tipo de plan?'))return;
+  const r=await fetch(`/api/membresias/tipos/${id}`,{method:'DELETE'});
+  if(r.ok){showAlert('Eliminado.');const nuevos=await fetch('/api/membresias/tipos').then(r=>r.ok?r.json():[]);tipos=nuevos;renderTipos();}
+  else showAlert('Error','error');
+}
+
+async function cancelar(id){if(!confirm('¿Cancelar?'))return;const r=await fetch(`/api/membresias/${id}/cancelar`,{method:'PUT'});if(r.ok){showAlert('Cancelada.');load();}else showAlert('Error','error');}
+async function reactivar(id){if(!confirm('¿Reactivar desde hoy?'))return;const r=await fetch(`/api/membresias/${id}/reactivar`,{method:'PUT'});const d=await r.json();if(r.ok){showAlert(d.message);load();}else showAlert(d.error||'Error','error');}
+async function congelar(id){if(!confirm('¿Congelar esta membresía?'))return;const r=await fetch(`/api/membresias/${id}/congelar`,{method:'PUT'});const d=await r.json();if(r.ok){showAlert(d.message);load();}else showAlert(d.error||'Error','error');}
+async function descongelar(id){if(!confirm('¿Descongelar y extender los días?'))return;const r=await fetch(`/api/membresias/${id}/descongelar`,{method:'PUT'});const d=await r.json();if(r.ok){showAlert(d.message);load();}else showAlert(d.error||'Error','error');}
+
+load();
+</script>
+{% endblock %}

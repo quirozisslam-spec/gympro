@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Entrenadores — GymPro{% endblock %}
+{% block topbar_title %}ENTRENADORES{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+  <div><h1>ENTRENADORES</h1><p>Equipo de profesionales del gimnasio</p></div>
+  {% if session.get('rol') == 'administrador' %}
+  <button class="btn btn-primary" onclick="openModal('modal-nuevo')">+ Nuevo Entrenador</button>
+  {% endif %}
+</div>
+<div id="alert-box" class="alert hidden"></div>
+
+<div id="grid-entrenadores" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+
+<!-- MODAL NUEVO -->
+{% if session.get('rol') == 'administrador' %}
+<div class="modal-overlay" id="modal-nuevo">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>NUEVO ENTRENADOR</h2><button class="modal-close" onclick="closeModal('modal-nuevo')">✕</button></div>
+
+    <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.15);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted2)">
+      <strong style="color:var(--accent2)">🔑 Acceso:</strong> La contraseña inicial será <strong>Entrena123!</strong>. El entrenador puede cambiarla desde su perfil.
+    </div>
+
+    <div class="form-row">
+      <div class="form-group"><label>Cédula *</label><input id="n-cedula" placeholder="Número de identificación"/></div>
+      <div class="form-group"><label>Teléfono</label><input id="n-telefono" placeholder="Celular"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre *</label><input id="n-nombre" placeholder="Carlos"/></div>
+      <div class="form-group"><label>Apellido *</label><input id="n-apellido" placeholder="Mendoza"/></div>
+    </div>
+    <div class="form-group"><label>Email *</label><input type="email" id="n-email" placeholder="carlos.e@gympro.com"/></div>
+    <div class="form-group"><label>Especialidad</label><input id="n-especialidad" placeholder="Ej: Fuerza y musculación, CrossFit, Yoga…"/></div>
+
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin:14px 0">
+      <div style="font-family:var(--font-display);font-size:11px;letter-spacing:1px;color:var(--accent2);margin-bottom:12px">FORMACIÓN PROFESIONAL</div>
+      <div class="form-group"><label>Título profesional</label><input id="n-titulo" placeholder="Ej: Licenciado en Educación Física"/></div>
+      <div class="form-group"><label>Universidad / Institución</label><input id="n-universidad" placeholder="Ej: Universidad Nacional"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>¿Es profesional certificado?</label>
+          <select id="n-profesional"><option value="0">No</option><option value="1">Sí</option></select>
+        </div>
+        <div class="form-group"><label>Años de experiencia</label><input type="number" id="n-experiencia" placeholder="0" min="0"/></div>
+      </div>
+      <div class="form-group"><label>Certificaciones adicionales</label><textarea id="n-certificaciones" rows="2" placeholder="Ej: CrossFit L2, NSCA-CPT, Nutrición deportiva…"></textarea></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nuevo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createEntrenador()">Crear Entrenador</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>EDITAR ENTRENADOR</h2><button class="modal-close" onclick="closeModal('modal-editar')">✕</button></div>
+    <input type="hidden" id="e-id"/>
+    <div class="form-row">
+      <div class="form-group"><label>Cédula *</label><input id="e-cedula"/></div>
+      <div class="form-group"><label>Teléfono</label><input id="e-telefono"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre *</label><input id="e-nombre"/></div>
+      <div class="form-group"><label>Apellido *</label><input id="e-apellido"/></div>
+    </div>
+    <div class="form-group"><label>Especialidad</label><input id="e-especialidad"/></div>
+    <div class="form-group"><label>Título profesional</label><input id="e-titulo"/></div>
+    <div class="form-group"><label>Universidad / Institución</label><input id="e-universidad"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>¿Profesional certificado?</label><select id="e-profesional"><option value="0">No</option><option value="1">Sí</option></select></div>
+      <div class="form-group"><label>Años de experiencia</label><input type="number" id="e-experiencia" min="0"/></div>
+    </div>
+    <div class="form-group"><label>Certificaciones</label><textarea id="e-certificaciones" rows="2"></textarea></div>
+    <div class="form-group"><label>Estado</label><select id="e-estado"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-editar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="updateEntrenador()">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allEntrenadores=[];
+const esAdmin={{ 'true' if session.get('rol') == 'administrador' else 'false' }};
+
+async function load(){
+  allEntrenadores=await fetch('/api/entrenadores').then(r=>r.ok?r.json():[]);
+  render(allEntrenadores);
+}
+
+function render(data){
+  document.getElementById('grid-entrenadores').innerHTML=data.map(e=>`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),#00ffcc);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:18px;font-weight:700;color:#000;flex-shrink:0">
+          ${e.nombre.charAt(0)}${e.apellido.charAt(0)}
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:15px">${e.nombre} ${e.apellido}</div>
+          <div style="font-size:11px;color:var(--muted2)">CC: ${e.cedula}</div>
+        </div>
+      </div>
+
+      ${e.especialidad?`<div style="margin-bottom:8px"><span class="badge badge-trainer">${e.especialidad}</span></div>`:''}
+
+      <div style="font-size:12px;color:var(--muted2);line-height:1.8">
+        ${e.email?`<div>📧 ${e.email}</div>`:''}
+        ${e.telefono?`<div>📱 ${e.telefono}</div>`:''}
+        ${e.titulo?`<div>🎓 ${e.titulo}</div>`:''}
+        ${e.universidad?`<div>🏛 ${e.universidad}</div>`:''}
+        ${e.anos_experiencia?`<div>⭐ ${e.anos_experiencia} años de experiencia</div>`:''}
+        ${e.es_profesional?`<div><span class="badge badge-active" style="font-size:10px">✓ Profesional Certificado</span></div>`:''}
+        ${e.certificaciones?`<div style="margin-top:4px;color:var(--muted)">📋 ${e.certificaciones}</div>`:''}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="badge ${e.estado==='activo'?'badge-active':'badge-inactive'}">${e.estado}</span>
+        ${esAdmin?`<div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(e).replace(/'/g,"&#39;")})'>✏ Editar</button>
+        </div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function createEntrenador(){
+  const cedula=document.getElementById('n-cedula').value.trim();
+  const nombre=document.getElementById('n-nombre').value.trim();
+  const apellido=document.getElementById('n-apellido').value.trim();
+  const email=document.getElementById('n-email').value.trim();
+  if(!cedula||!nombre||!apellido||!email)return showAlert('Cédula, nombre, apellido y email son obligatorios.','error');
+
+  const body={cedula,nombre,apellido,email,
+    telefono:document.getElementById('n-telefono').value,
+    especialidad:document.getElementById('n-especialidad').value,
+    titulo:document.getElementById('n-titulo').value,
+    universidad:document.getElementById('n-universidad').value,
+    es_profesional:document.getElementById('n-profesional').value,
+    anos_experiencia:document.getElementById('n-experiencia').value||0,
+    certificaciones:document.getElementById('n-certificaciones').value,
+  };
+  const r=await fetch('/api/entrenadores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('✅ '+d.message);closeModal('modal-nuevo');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+function openEdit(e){
+  document.getElementById('e-id').value=e.id;
+  document.getElementById('e-cedula').value=e.cedula||'';
+  document.getElementById('e-nombre').value=e.nombre;
+  document.getElementById('e-apellido').value=e.apellido;
+  document.getElementById('e-especialidad').value=e.especialidad||'';
+  document.getElementById('e-titulo').value=e.titulo||'';
+  document.getElementById('e-universidad').value=e.universidad||'';
+  document.getElementById('e-profesional').value=e.es_profesional?'1':'0';
+  document.getElementById('e-experiencia').value=e.anos_experiencia||0;
+  document.getElementById('e-certificaciones').value=e.certificaciones||'';
+  document.getElementById('e-estado').value=e.estado;
+  openModal('modal-editar');
+}
+
+async function updateEntrenador(){
+  const id=document.getElementById('e-id').value;
+  const body={
+    cedula:document.getElementById('e-cedula').value,
+    nombre:document.getElementById('e-nombre').value,
+    apellido:document.getElementById('e-apellido').value,
+    especialidad:document.getElementById('e-especialidad').value,
+    titulo:document.getElementById('e-titulo').value,
+    universidad:document.getElementById('e-universidad').value,
+    es_profesional:document.getElementById('e-profesional').value,
+    anos_experiencia:document.getElementById('e-experiencia').value||0,
+    certificaciones:document.getElementById('e-certificaciones').value,
+    estado:document.getElementById('e-estado').value,
+  };
+  if(!body.cedula||!body.nombre||!body.apellido)return showAlert('Cédula, nombre y apellido son obligatorios.','error');
+  const r=await fetch(`/api/entrenadores/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('Actualizado.');closeModal('modal-editar');load();}
+  else showAlert(d.error||'Error','error');
+}
+
+load();
+</script>
+{% endblock %}

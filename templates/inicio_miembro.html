@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Inicio — GymPro{% endblock %}
+{% block topbar_title %}INICIO{% endblock %}
+{% block extra_css %}
+<style>
+.welcome-card{background:linear-gradient(135deg,#0a0a25,#0f0f35);border:1px solid rgba(108,99,255,.2);border-radius:var(--radius);padding:28px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.welcome-card::before{content:'GYMPRO';position:absolute;right:-20px;top:50%;transform:translateY(-50%);font-family:var(--font-display);font-size:100px;color:rgba(108,99,255,.04);pointer-events:none}
+.welcome-text h2{font-family:var(--font-display);font-size:26px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px}
+.reloj{font-family:var(--font-display);font-size:42px;color:rgba(108,99,255,.3);flex-shrink:0}
+.asist-status{border-radius:var(--radius);padding:20px;margin-bottom:16px;text-align:center}
+.asist-status.presente{background:rgba(46,213,115,.08);border:1px solid rgba(46,213,115,.2)}
+.asist-status.ausente{background:rgba(108,99,255,.06);border:1px solid rgba(108,99,255,.15)}
+.big-check{font-size:48px;margin-bottom:8px}
+.memb-ring{width:70px;height:70px;border-radius:50%;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-direction:column;flex-shrink:0;box-shadow:0 0 15px rgba(108,99,255,.3)}
+.memb-ring .num{font-family:var(--font-display);font-size:22px;color:var(--accent);line-height:1}
+.memb-ring .lbl{font-size:9px;color:var(--muted2);text-transform:uppercase}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="welcome-card">
+  <div class="welcome-text">
+    <h2 id="saludo">BIENVENIDO</h2>
+    <p id="fecha-hoy" style="color:var(--muted2);font-size:13px;margin-top:6px"></p>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge badge-member">Miembro</span>
+      <span class="badge badge-active" id="badge-memb">—</span>
+    </div>
+  </div>
+  <div class="reloj" id="reloj">00:00</div>
+</div>
+
+<div id="alert-box" class="alert hidden"></div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <!-- ASISTENCIA HOY -->
+  <div class="card">
+    <div class="card-title">✓ MI ASISTENCIA HOY</div>
+    <div id="asist-status-box"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-primary" style="flex:1" onclick="registrarEntrada()">✓ Registrar Entrada</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="registrarSalida()">← Registrar Salida</button>
+    </div>
+  </div>
+
+  <!-- MEMBRESÍA -->
+  <div class="card">
+    <div class="card-title">💳 MI MEMBRESÍA</div>
+    <div id="memb-info" style="color:var(--muted2)">Cargando...</div>
+  </div>
+</div>
+
+<!-- ENTRENO HOY -->
+<div id="entreno-box" style="margin-bottom:20px;border-radius:var(--radius);padding:20px;background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.15)">
+  <div class="card-title" style="color:var(--accent2)">🏋 ¿QUÉ ME TOCA HOY?</div>
+  <div id="entreno-info" style="color:var(--muted2);font-size:13px">Cargando...</div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+const now=new Date();
+// Fecha local sin UTC
+const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+const uid={{ session.get('user_id') }};
+const hoyIdx=now.getDay()===0?6:now.getDay()-1;
+const diasNombre=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const diaNumero=hoyIdx+1; // 1=Lun...7=Dom para el API
+
+function tick(){const t=new Date();document.getElementById('reloj').textContent=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');}
+tick();setInterval(tick,1000);
+document.getElementById('saludo').textContent='BIENVENIDO, {{ session.get("nombre","").split(" ")[0].upper() }}';
+document.getElementById('fecha-hoy').textContent=now.toLocaleDateString('es-CO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+async function load(){
+  const [perfil,asistencias]=await Promise.all([
+    fetch('/api/perfil').then(r=>r.ok?r.json():null),
+    fetch(`/api/asistencia?usuario_id=${uid}`).then(r=>r.ok?r.json():[]),
+  ]);
+  if(!perfil)return;
+  const {rutina,membresia}=perfil;
+
+  document.getElementById('badge-memb').textContent=membresia?`${membresia.tipo_membresia} · ${membresia.dias_restantes}d`:'Sin membresía';
+
+  // Membresía
+  const mi=document.getElementById('memb-info');
+  if(membresia){
+    const color=membresia.dias_restantes<=7?'var(--danger)':'var(--success)';
+    mi.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div class="memb-ring" style="border-color:${color}"><div class="num" style="color:${color}">${membresia.dias_restantes}</div><div class="lbl">días</div></div>
+      <div>
+        <div style="font-family:var(--font-display);font-size:18px;color:var(--accent)">${membresia.tipo_membresia}</div>
+        <div style="font-size:12px;margin-top:4px">Vence: <strong>${membresia.fecha_fin||'—'}</strong></div>
+        ${membresia.estado==='congelada'?'<span class="badge badge-info">❄ Congelada</span>':''}
+      </div></div>`;
+  } else {
+    mi.innerHTML='<p>Sin membresía activa. Contacta al administrador.</p>';
+  }
+
+  renderAsistHoy(asistencias);
+  renderEntrenoHoy(rutina);
+}
+
+function renderAsistHoy(asistencias){
+  const hoy=asistencias.find(a=>a.fecha===today);
+  const box=document.getElementById('asist-status-box');
+  if(hoy){
+    box.innerHTML=`<div class="asist-status presente">
+      <div class="big-check">✅</div>
+      <div style="font-weight:700;font-size:15px;color:var(--success)">¡Ya asististe hoy!</div>
+      <div style="font-size:12px;color:var(--muted2);margin-top:4px">Entrada: ${hoy.hora_entrada||'—'}${hoy.hora_salida?' · Salida: '+hoy.hora_salida:' · Sin salida'}</div>
+    </div>`;
+  } else {
+    box.innerHTML=`<div class="asist-status ausente">
+      <div class="big-check">⭕</div>
+      <div style="font-weight:700;font-size:15px;color:var(--muted2)">Aún no has asistido hoy</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Registra tu entrada al llegar</div>
+    </div>`;
+  }
+}
+
+function renderEntrenoHoy(rutina){
+  const box=document.getElementById('entreno-info');
+  if(!rutina||!rutina.rutina){box.textContent='Sin rutina asignada. Contacta a tu entrenador.';return;}
+  const ejs=rutina.ejercicios||[];
+  const diasConEj=[...new Set(ejs.map(e=>e.dia))].sort();
+  const totalDias=diasConEj.length;
+  if(!totalDias){box.textContent='Sin ejercicios cargados. Contacta a tu entrenador.';return;}
+  const diaNum=diasConEj[hoyIdx%totalDias];
+  const ejsHoy=ejs.filter(e=>e.dia===diaNum);
+  if(!ejsHoy.length){
+    box.innerHTML=`<div style="font-size:15px;font-weight:600">😴 ${diasNombre[hoyIdx]} — Día de descanso</div><div style="font-size:13px;color:var(--muted2);margin-top:4px">Aprovecha para recuperarte.</div>`;
+    return;
+  }
+  box.innerHTML=`
+    <div style="font-size:15px;font-weight:700;color:var(--accent2);margin-bottom:8px">💪 ${diasNombre[hoyIdx]} — ${rutina.rutina}</div>
+    <div style="font-size:12px;color:var(--muted2);margin-bottom:12px">${ejsHoy.length} ejercicios · Día ${diaNum} de ${totalDias}</div>
+    ${ejsHoy.slice(0,4).map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <div style="font-size:13px;font-weight:600">${e.nombre}</div>
+      <div style="font-size:12px;color:var(--accent);font-weight:700">${e.series}×${e.repeticiones}</div>
+    </div>`).join('')}
+    ${ejsHoy.length>4?`<div style="font-size:12px;color:var(--muted2);margin-top:8px">+${ejsHoy.length-4} más. <a href="/rutinas" style="color:var(--accent2)">Ver rutina completa →</a></div>`:''}`;
+}
+
+async function registrarEntrada(){
+  const r=await fetch('/api/asistencia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario_id:uid})});
+  const d=await r.json();
+  if(r.ok||r.status===201){
+    showAlert('¡Entrada registrada! 💪');
+    const a=await fetch(`/api/asistencia?usuario_id=${uid}`).then(r=>r.ok?r.json():[]);
+    renderAsistHoy(a);
+  } else {
+    showAlert(d.error&&d.error.includes('Duplicate')?'Ya tienes entrada registrada hoy.':d.error||'Error','error');
+  }
+}
+
+async function registrarSalida(){
+  const asist=await fetch(`/api/asistencia?usuario_id=${uid}`).then(r=>r.ok?r.json():[]);
+  const hoy=asist.find(a=>a.fecha===today);
+  if(!hoy)return showAlert('No tienes entrada registrada hoy.','error');
+  if(hoy.hora_salida)return showAlert('Ya registraste tu salida hoy.','info');
+  const r=await fetch(`/api/asistencia/${hoy.id}/salida`,{method:'PUT'});
+  if(r.ok){showAlert('¡Salida registrada! 🏆');const a=await fetch(`/api/asistencia?usuario_id=${uid}`).then(r=>r.ok?r.json():[]);renderAsistHoy(a);}
+  else showAlert('Error','error');
+}
+
+// Cargar alerta si hay
+function showAlert(msg,type='success'){const el=document.getElementById('alert-box');el.textContent=msg;el.className=`alert alert-${type}`;el.style.display='block';setTimeout(()=>{el.style.display='none';},4000);}
+
+load();
+</script>
+{% endblock %}

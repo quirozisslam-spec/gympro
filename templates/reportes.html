@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Reportes — GymPro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>REPORTES Y ANÁLISIS</h1>
+  <p>Consultas avanzadas y registros de auditoría</p>
+</div>
+
+<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+  <button class="btn btn-secondary" onclick="showSection('asistencia')">Asistencia Mensual</button>
+  <button class="btn btn-secondary" onclick="showSection('miembros')">Miembros y Rutinas</button>
+  <button class="btn btn-secondary" onclick="showSection('carga')">Carga de Entrenadores</button>
+  <button class="btn btn-secondary" onclick="showSection('auditoria')">Log de Auditoría</button>
+  <div style="margin-left:auto;display:flex;gap:8px">
+  </div>
+</div>
+
+<!-- Asistencia Mensual -->
+<div class="card" id="sec-asistencia">
+  <div class="card-title">ASISTENCIA MENSUAL</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Miembro</th><th>Año</th><th>Mes</th><th>Total Asistencias</th></tr></thead>
+      <tbody id="tb-asistencia"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Miembros y Rutinas -->
+<div class="card hidden" id="sec-miembros">
+  <div class="card-title">MIEMBROS Y RUTINAS ASIGNADAS</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Miembro</th><th>Email</th><th>Estado</th><th>Rutina</th><th>Objetivo</th><th>Entrenador</th></tr></thead>
+      <tbody id="tb-miembros"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Carga Entrenadores -->
+<div class="card hidden" id="sec-carga">
+  <div class="card-title">CARGA DE ENTRENADORES</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Entrenador</th><th>Especialidad</th><th>Total Rutinas</th><th>Miembros Activos</th></tr></thead>
+      <tbody id="tb-carga"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Auditoría -->
+<div class="card hidden" id="sec-auditoria">
+  <div class="card-title">LOG DE AUDITORÍA</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Tabla</th><th>Operación</th><th>Registro ID</th><th>Detalle</th></tr></thead>
+      <tbody id="tb-auditoria"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const sections = ['asistencia','miembros','carga','auditoria'];
+
+function showSection(name) {
+  sections.forEach(s => {
+    document.getElementById(`sec-${s}`).classList.toggle('hidden', s !== name);
+  });
+  loadSection(name);
+}
+
+const loaded = {};
+async function loadSection(name) {
+  if (loaded[name]) return;
+  loaded[name] = true;
+
+  if (name === 'asistencia') {
+    const data = await fetch('/api/reportes/asistencia-mensual').then(r=>r.ok?r.json():[]);
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    document.getElementById('tb-asistencia').innerHTML = data.map(d=>`
+      <tr><td>${d.miembro}</td><td>${d.anio}</td><td>${meses[d.mes]||d.mes}</td>
+      <td><strong style="color:var(--accent)">${d.total_asistencias}</strong></td></tr>`).join('');
+  }
+
+  if (name === 'miembros') {
+    const data = await fetch('/api/reportes/miembros-rutinas').then(r=>r.ok?r.json():[]);
+    document.getElementById('tb-miembros').innerHTML = data.map(d=>`
+      <tr>
+        <td><strong>${d.miembro}</strong></td>
+        <td style="color:var(--muted)">${d.email}</td>
+        <td><span class="badge ${d.estado_miembro==='activo'?'badge-active':'badge-inactive'}">${d.estado_miembro}</span></td>
+        <td>${d.rutina||'—'}</td>
+        <td style="color:var(--muted)">${d.objetivo||'—'}</td>
+        <td>${d.entrenador||'—'}</td>
+      </tr>`).join('');
+  }
+
+  if (name === 'carga') {
+    const data = await fetch('/api/reportes/carga-entrenadores').then(r=>r.ok?r.json():[]);
+    document.getElementById('tb-carga').innerHTML = data.map(d=>`
+      <tr>
+        <td><strong>${d.entrenador}</strong></td>
+        <td style="color:var(--muted)">${d.especialidad||'—'}</td>
+        <td style="color:var(--accent);font-weight:700">${d.total_rutinas}</td>
+        <td>${d.miembros_activos}</td>
+      </tr>`).join('');
+  }
+
+  if (name === 'auditoria') {
+    const data = await fetch('/api/reportes/auditoria').then(r=>r.ok?r.json():[]);
+    const opColor = {INSERT:'var(--success)',UPDATE:'var(--accent)',DELETE:'var(--danger)'};
+    document.getElementById('tb-auditoria').innerHTML = data.map(d=>`
+      <tr>
+        <td style="color:var(--muted)">${d.fecha}</td>
+        <td>${d.tabla}</td>
+        <td><span style="color:${opColor[d.operacion]||'var(--text)'};font-weight:700">${d.operacion}</span></td>
+        <td>${d.registro_id}</td>
+        <td style="color:var(--muted);font-size:12px">${d.detalle||'—'}</td>
+      </tr>`).join('');
+  }
+}
+
+// Cargar sección inicial
+loadSection('asistencia');
+</script>
+{% endblock %}
