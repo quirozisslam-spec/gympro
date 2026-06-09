@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}Mi Dieta — GymPro{% endblock %}
+{% block topbar_title %}MI PLAN DE NUTRICIÓN{% endblock %}
+{% block extra_css %}
+<style>
+.dieta-header{background:linear-gradient(135deg,rgba(46,213,115,.1),rgba(0,212,255,.05));border:1px solid rgba(46,213,115,.2);border-radius:var(--radius);padding:24px;margin-bottom:24px}
+.imc-circle{width:90px;height:90px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;flex-shrink:0;border:3px solid}
+.dias-tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;background:var(--surface);padding:6px;border-radius:var(--radius-sm)}
+.dia-tab{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font-body);background:transparent;color:var(--muted2);transition:all .2s}
+.dia-tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000}
+.comida-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:12px;transition:border-color .2s}
+.comida-card:hover{border-color:var(--accent2)}
+.comida-hora{font-family:var(--font-display);font-size:11px;letter-spacing:2px;color:var(--accent2);margin-bottom:6px}
+.comida-nombre{font-weight:700;font-size:16px;margin-bottom:6px;color:var(--text)}
+.comida-desc{font-size:13px;color:var(--muted2);line-height:1.7;margin-bottom:10px}
+.macros{display:flex;gap:8px;flex-wrap:wrap}
+.macro{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600}
+.macro.prot{background:rgba(255,107,157,.1);color:#ff6b9d;border:1px solid rgba(255,107,157,.2)}
+.macro.carb{background:rgba(232,255,0,.1);color:var(--accent);border:1px solid rgba(232,255,0,.2)}
+.macro.gras{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
+.macro.cal{background:rgba(46,213,115,.1);color:var(--success);border:1px solid rgba(46,213,115,.2)}
+.resumen-dia{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.tip-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;display:flex;gap:12px;align-items:flex-start}
+.tip-icon{font-size:22px;flex-shrink:0}
+.sin-valoracion{text-align:center;padding:60px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>MI PLAN DE NUTRICIÓN</h1>
+  <p>Plan personalizado según tu perfil físico y objetivos</p>
+</div>
+
+<!-- Se muestra según tenga o no valoración -->
+<div id="sin-valoracion-box" style="display:none">
+  <div class="sin-valoracion">
+    <div style="font-size:64px;margin-bottom:16px">📋</div>
+    <h2 style="font-family:var(--font-display);font-size:22px;color:var(--accent);letter-spacing:2px;margin-bottom:12px">VALORACIÓN REQUERIDA</h2>
+    <p style="color:var(--muted2);font-size:14px;max-width:400px;margin:0 auto;line-height:1.7">
+      Para acceder a tu plan nutricional personalizado, primero necesitas completar tu <strong style="color:var(--text)">valoración física</strong> con tu entrenador.<br><br>
+      Una vez registrados tus datos (peso, talla, composición corporal), el sistema generará automáticamente un plan de nutrición adaptado a ti.
+    </p>
+    <div style="margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <span class="badge badge-warn">⚠ Sin valoración física</span>
+      <span style="font-size:13px;color:var(--muted2)">Habla con tu entrenador para programarla</span>
+    </div>
+  </div>
+</div>
+
+<div id="plan-box" style="display:none">
+  <div class="dieta-header" id="dieta-header">
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div class="imc-circle" id="imc-circle" style="border-color:var(--success)">
+        <div style="font-family:var(--font-display);font-size:22px" id="imc-val">—</div>
+        <div style="font-size:9px;color:var(--muted2)">IMC</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:var(--font-display);font-size:22px" id="imc-cat">—</div>
+        <div style="font-size:13px;color:var(--muted2);margin-top:4px" id="datos-fisicos"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap" id="macros-dia"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dias-tabs">
+    <button class="dia-tab active" onclick="showDia(0,this)">Lunes</button>
+    <button class="dia-tab" onclick="showDia(1,this)">Martes</button>
+    <button class="dia-tab" onclick="showDia(2,this)">Miércoles</button>
+    <button class="dia-tab" onclick="showDia(3,this)">Jueves</button>
+    <button class="dia-tab" onclick="showDia(4,this)">Viernes</button>
+    <button class="dia-tab" onclick="showDia(5,this)">Sábado</button>
+    <button class="dia-tab" onclick="showDia(6,this)">Domingo</button>
+  </div>
+
+  <div id="plan-dia"></div>
+
+  <div style="margin-top:24px">
+    <div class="card-title">💡 CONSEJOS PERSONALIZADOS</div>
+    <div id="tips-container" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let planSemanal = [];
+
+async function load(){
+  const perfil = await fetch('/api/perfil').then(r=>r.ok?r.json():null);
+  if(!perfil){ return; }
+
+  const fisica = perfil.fisica;
+
+  // Verificar si tiene valoración con datos mínimos
+  const tieneValoracion = fisica && fisica.completada === 1;
+
+  if(!tieneValoracion){
+    document.getElementById('sin-valoracion-box').style.display = 'block';
+    document.getElementById('plan-box').style.display = 'none';
+    return;
+  }
+
+  // Tiene valoración — mostrar plan
+  document.getElementById('sin-valoracion-box').style.display = 'none';
+  document.getElementById('plan-box').style.display = 'block';
+
+  const rutina   = perfil.rutina;
+  const objetivo = fisica.objetivo || (rutina && rutina.objetivo) || 'mantener';
+  const peso     = parseFloat(fisica.peso_kg || 70);
+  const est      = parseFloat(fisica.estatura_cm || 170);
+  const edad     = parseInt(fisica.edad || 30);
+  const genero   = fisica.genero || 'masculino';
+  const imc      = fisica.imc ? parseFloat(fisica.imc) : parseFloat((peso/Math.pow(est/100,2)).toFixed(1));
+  const enf      = fisica.enfermedades || '';
+  const fumador  = fisica.fumador;
+  const nivel    = fisica.nivel_actividad || 'poco_activo';
+  const tmb      = fisica.tasa_metabolica_basal || null;
+
+  // IMC categoría
+  let imcColor, imcCat;
+  if(imc<18.5){imcColor='var(--info)';imcCat='Bajo peso';}
+  else if(imc<25){imcColor='var(--success)';imcCat='Peso normal';}
+  else if(imc<30){imcColor='var(--warning)';imcCat='Sobrepeso';}
+  else{imcColor='var(--danger)';imcCat='Obesidad';}
+
+  document.getElementById('imc-circle').style.borderColor = imcColor;
+  document.getElementById('imc-val').style.color = imcColor;
+  document.getElementById('imc-val').textContent = imc.toFixed(1);
+  document.getElementById('imc-cat').textContent = imcCat;
+  document.getElementById('datos-fisicos').innerHTML =
+    `Peso: <strong>${peso}kg</strong> · Estatura: <strong>${est}cm</strong> · Objetivo: <strong>${objetivo.replace(/_/g,' ')}</strong>`;
+
+  // Calcular calorías (Mifflin-St Jeor o usar TMB guardada)
+  let cal;
+  if(tmb){
+    cal = tmb;
+  } else {
+    const bmr = genero==='femenino'
+      ? 10*peso + 6.25*est - 5*edad - 161
+      : 10*peso + 6.25*est - 5*edad + 5;
+    const factores = {sedentario:1.2, poco_activo:1.375, activo:1.55, muy_activo:1.725};
+    cal = Math.round(bmr * (factores[nivel]||1.375));
+  }
+
+  document.getElementById('macros-dia').innerHTML =
+    `<span class="macro cal">🔥 ~${cal} kcal/día</span>
+     <span class="macro prot">🥩 ${Math.round(peso*2.2)}g proteína</span>`;
+
+  // Generar plan según objetivo
+  if(objetivo==='bajar_peso'||objetivo==='perdida_peso') planSemanal = generarPlanBajar(peso, cal);
+  else if(objetivo==='ganar_musculo'||objetivo==='ganancia_muscular') planSemanal = generarPlanMusculo(peso, cal);
+  else if(objetivo==='aumentar_resistencia'||objetivo==='cardio') planSemanal = generarPlanResistencia(peso, cal);
+  else planSemanal = generarPlanMantener(peso, cal);
+
+  showDia(0, document.querySelector('.dia-tab'));
+  generarTips(enf, fumador, imc, objetivo, nivel);
+}
+
+function generarPlanBajar(peso, cal){
+  const c = Math.round(cal * 0.8);
+  return [
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Avena con frutas',d:'1/2 taza avena con agua o leche descremada + 1 fruta pequeña + 1 huevo duro.',p:18,c:45,g:5,k:293},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Snack bajo en calorías',d:'1 manzana + 1 puñado almendras (10 unidades).',p:4,c:22,g:9,k:181},
+     {hora:'☀ ALMUERZO 12:30 PM',n:'Ensalada con proteína',d:'150g pollo a la plancha + ensalada grande (lechuga, tomate, pepino, zanahoria) + vinagreta de limón.',p:38,c:15,g:8,k:284},
+     {hora:'🌿 MERIENDA 3:30 PM',n:'Yogur sin azúcar',d:'1 taza yogur griego natural + canela. Sin azúcar agregada.',p:17,c:9,g:0,k:104},
+     {hora:'🌙 CENA 7:00 PM',n:'Sopa de verduras con proteína',d:'Caldo de pollo con brócoli, zanahoria, apio. 100g proteína magra.',p:30,c:20,g:4,k:236}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Claras con vegetales',d:'3 claras + 1 huevo entero + espinaca + tomate. Tortilla o revuelto.',p:22,c:5,g:6,k:162},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Fruta fresca',d:'1 pera o naranja o toronjas. Evita jugos.',p:1,c:20,g:0,k:84},
+     {hora:'☀ ALMUERZO 12:30 PM',n:'Atún con vegetales al vapor',d:'1 lata atún en agua + brócoli, zanahoria y arveja al vapor + 1/2 taza arroz integral.',p:35,c:30,g:2,k:278},
+     {hora:'🌿 MERIENDA 3:30 PM',n:'Pepino con limón',d:'1 pepino en rodajas con limón y sal mínima. Cero calorías casi.',p:1,c:6,g:0,k:28},
+     {hora:'🌙 CENA 7:00 PM',n:'Pollo al horno con vegetales',d:'150g pechuga al horno con especias + espárragos o brócoli al vapor.',p:38,c:8,g:4,k:220}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Smoothie verde proteico',d:'1 taza espinaca + 1/2 banano + 1 scoop proteína + 1 taza agua o leche descremada.',p:28,c:25,g:2,k:230},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Nueces',d:'15g nueces. Grasas saludables que sacian.',p:2,c:4,g:10,k:110},
+     {hora:'☀ ALMUERZO 12:30 PM',n:'Lentejas con vegetales',d:'3/4 taza lentejas cocidas + zanahoria + apio + tomate. Sin arroz.',p:22,c:40,g:1,k:257},
+     {hora:'🌿 MERIENDA 3:30 PM',n:'Té verde sin azúcar',d:'Té verde + 1 tostada integral con 1 cucharadita de aguacate.',p:2,c:12,g:5,k:101},
+     {hora:'🌙 CENA 7:00 PM',n:'Salmón a la plancha',d:'150g salmón a la plancha + ensalada verde + limón.',p:36,c:2,g:14,k:282}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Pan integral con huevo',d:'1 tostada integral + 2 huevos tibios + tomate en rodajas.',p:16,c:18,g:10,k:226},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Fresas con yogur',d:'1 taza fresas + 1/2 taza yogur griego natural.',p:9,c:18,g:0,k:108},
+     {hora:'☀ ALMUERZO 12:30 PM',n:'Res magra con ensalada',d:'150g carne magra a la plancha + ensalada abundante + vinagreta.',p:38,c:10,g:8,k:266},
+     {hora:'🌿 MERIENDA 3:30 PM',n:'Zanahoria baby',d:'Zanahorias baby con hummus casero (2 cucharadas).',p:4,c:14,g:4,k:108},
+     {hora:'🌙 CENA 7:00 PM',n:'Tortilla de clara con vegetales',d:'4 claras + pimentón + cebolla + champiñones. Sin aceite (antiadherente).',p:20,c:8,g:1,k:121}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Avena proteica',d:'1/2 taza avena + 1 scoop proteína + canela + stevia. Con agua.',p:32,c:35,g:3,k:295},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Manzana verde',d:'1 manzana verde. Bajo índice glucémico.',p:0,c:19,g:0,k:76},
+     {hora:'☀ ALMUERZO 12:30 PM',n:'Pollo a la plancha con quinoa',d:'150g pollo + 1/2 taza quinoa cocida + vegetales asados.',p:42,c:32,g:6,k:350},
+     {hora:'🌿 MERIENDA 3:30 PM',n:'Yogur griego con pepino',d:'3/4 taza yogur griego + pepino rallado + ajo + eneldo (tzatziki).',p:14,c:8,g:0,k:88},
+     {hora:'🌙 CENA 7:00 PM',n:'Trucha al vapor',d:'150g trucha al vapor + brócoli y judías verdes.',p:34,c:5,g:8,k:228}],
+    [{hora:'🌅 DESAYUNO 8:00 AM',n:'Tazón de fruta con proteína',d:'1 taza frutas + 1 taza yogur griego + 1 cucharada semillas de chía.',p:18,c:35,g:4,k:248},
+     {hora:'🍎 MEDIA MAÑANA 11:00 AM',n:'Batido verde',d:'Espinaca + pepino + apio + limón + agua. Sin fruta para menos calorías.',p:2,c:8,g:0,k:40},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Ensalada templada de pollo',d:'150g pollo desmenuzado + garbanzos + tomate cherry + aguacate + limón.',p:40,c:28,g:12,k:380},
+     {hora:'🌿 MERIENDA 4:00 PM',n:'Café negro con nueces',d:'Café sin azúcar + 10 almendras.',p:3,c:5,g:8,k:101},
+     {hora:'🌙 CENA 7:30 PM',n:'Sopa depurativa',d:'Caldo de verduras con apio, cebolla, ajo, perejil. Muy bajo en calorías.',p:4,c:12,g:1,k:73}],
+    [{hora:'🌅 DESAYUNO 9:00 AM',n:'Desayuno dominical fit',d:'2 huevos revueltos + 1 tostada integral + aguacate (1/4) + tomate.',p:16,c:20,g:12,k:252},
+     {hora:'🍎 MEDIA MAÑANA 12:00 PM',n:'Batido proteico ligero',d:'1 scoop proteína + agua + hielo. Solo 120 kcal.',p:24,c:3,g:1,k:117},
+     {hora:'☀ ALMUERZO 2:00 PM',n:'Ceviche de camarón',d:'200g camarón cocido + limón + cebolla + cilantro + tomate. Muy bajo en grasa.',p:30,c:10,g:2,k:178},
+     {hora:'🌿 MERIENDA 5:00 PM',n:'Fruta de temporada',d:'1 taza de melón, sandía o piña. Refrescante y bajo en calorías.',p:1,c:18,g:0,k:76},
+     {hora:'🌙 CENA 7:30 PM',n:'Pollo al limón con vegetales',d:'150g pollo + zucchini + pimentón + cebolla asados en horno con aceite de oliva mínimo.',p:38,c:12,g:6,k:254}]
+  ];
+}
+
+function generarPlanMusculo(peso, cal){
+  return [
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Avena con huevos y banano',d:`1 taza avena con leche + 3 huevos revueltos + 1 banano. Alta energía para el día.`,p:38,c:80,g:14,k:594},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Batido de masa',d:`1 scoop proteína + 1 taza leche entera + 1 banano + 1 cucharada mantequilla de maní.`,p:34,c:50,g:12,k:446},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Arroz con pollo y aguacate',d:`200g pollo al horno + 1 taza arroz blanco + 1/4 aguacate + ensalada + jugo natural.`,p:52,c:85,g:14,k:682},
+     {hora:'🌿 PRE-ENTRENO 4:00 PM',n:'Carbos pre-gym',d:`2 tostadas integrales + 2 cucharadas mantequilla de maní + 1 banano.`,p:12,c:60,g:16,k:428},
+     {hora:'💪 POST-ENTRENO',n:'Recuperación inmediata',d:`1 scoop proteína whey con agua + 1 banano grande. Consumir en 30 min post-entreno.`,p:30,c:30,g:2,k:258},
+     {hora:'🌙 CENA 8:00 PM',n:'Cena constructora',d:`200g salmón o res magra + 1 taza papa o yuca + vegetales salteados + 1 vaso leche.`,p:52,c:52,g:16,k:556}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Omelette de claras con avena',d:`5 claras + 1 huevo entero + queso + espinaca. Con 1 taza avena con leche.`,p:42,c:55,g:10,k:474},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Requesón con frutas',d:`1 taza requesón + 1 taza frutas + 1 puñado nueces.`,p:22,c:30,g:12,k:314},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Res magra con pasta integral',d:`200g lomo de res + 1 taza pasta integral + salsa de tomate natural + ensalada.`,p:52,c:80,g:12,k:644},
+     {hora:'🌿 MERIENDA 4:30 PM',n:'Snack proteico',d:`1 taza yogur griego + 2 cucharadas granola + 1 cucharada miel.`,p:20,c:40,g:5,k:285},
+     {hora:'💪 POST-ENTRENO',n:'Proteína post-gym',d:`1 scoop proteína whey + 1 taza leche + 1 cucharada miel.`,p:32,c:28,g:4,k:276},
+     {hora:'🌙 CENA 8:00 PM',n:'Pollo al horno con camote',d:`200g pollo al horno + 1 camote mediano + brócoli al vapor.`,p:50,c:55,g:8,k:496}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Pancakes proteicos',d:`1/2 taza avena + 2 huevos + 1 scoop proteína + 1/2 banano. Sin aceite.`,p:38,c:50,g:10,k:446},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Batido de recuperación',d:`1 scoop proteína + leche de almendra + mantequilla de maní + hielo.`,p:30,c:15,g:10,k:266},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Lentejas con carne y arroz',d:`1/2 taza lentejas + 150g carne molida magra + 3/4 taza arroz + ensalada.`,p:55,c:75,g:12,k:634},
+     {hora:'🌿 MERIENDA 4:00 PM',n:'Tostadas con atún',d:`2 galletas de arroz + 1/2 lata atún + tomate + limón.`,p:18,c:20,g:3,k:178},
+     {hora:'💪 POST-ENTRENO',n:'Whey con carbos',d:`1 scoop proteína whey + 1 taza jugo de naranja natural.`,p:28,c:28,g:1,k:233},
+     {hora:'🌙 CENA 8:00 PM',n:'Huevos con papa y vegetales',d:`3 huevos + 1 papa mediana + espinaca salteada con ajo.`,p:24,c:35,g:14,k:362}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Tazón proteico',d:`1 taza yogur griego + 1 scoop proteína + 1/2 taza avena + 1 taza frutas + miel.`,p:45,c:70,g:6,k:510},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Nueces y fruta seca',d:`20g nueces + 20g maní + 30g uvas pasas.`,p:8,c:30,g:16,k:290},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Cerdo magro con quinoa',d:`180g lomo de cerdo magro + 3/4 taza quinoa + zanahoria y arvejas.`,p:52,c:65,g:12,k:580},
+     {hora:'🌿 MERIENDA 4:30 PM',n:'Batido pre-gym',d:`1/2 scoop proteína + 1 banano + 1 taza leche + hielo.`,p:22,c:40,g:4,k:284},
+     {hora:'💪 POST-ENTRENO',n:'Recuperación express',d:`1 scoop proteína whey con agua + galletas de arroz.`,p:28,c:22,g:2,k:218},
+     {hora:'🌙 CENA 8:00 PM',n:'Salmón con vegetales al wok',d:`180g salmón + pimentón, brócoli, zanahoria salteados + 1/2 taza arroz.`,p:45,c:40,g:16,k:476}],
+    [{hora:'🌅 DESAYUNO 7:00 AM',n:'Avena nocturna',d:`1/2 taza avena + 1 taza leche + 1 scoop proteína + frutos rojos. Preparar la noche anterior.`,p:38,c:55,g:8,k:446},
+     {hora:'🍎 MEDIA MAÑANA 10:00 AM',n:'Huevo duro con pan',d:`2 huevos duros + 1 tostada integral + 1 manzana.`,p:16,c:30,g:10,k:274},
+     {hora:'☀ ALMUERZO 1:00 PM',n:'Pollo al curry con arroz',d:`180g pollo + curry suave + 1 taza arroz + guisantes + cebolla.`,p:48,c:75,g:10,k:586},
+     {hora:'🌿 MERIENDA 4:00 PM',n:'Proteína y carbos',d:`1 taza leche con cacao sin azúcar + 2 galletas de avena.`,p:12,c:35,g:6,k:242},
+     {hora:'💪 POST-ENTRENO',n:'Whey con leche',d:`1 scoop proteína whey + 1 taza leche entera.`,p:36,c:18,g:10,k:306},
+     {hora:'🌙 CENA 8:00 PM',n:'Tortilla proteica',d:`4 claras + 2 huevos + papa + cebolla + aceite de oliva mínimo.`,p:30,c:30,g:12,k:348}],
+    [{hora:'🌅 DESAYUNO 8:00 AM',n:'Desayuno de campeón',d:`3 huevos revueltos + 100g avena con leche y fruta + 1 vaso jugo natural.`,p:38,c:75,g:14,k:578},
+     {hora:'🍎 MEDIA MAÑANA 11:00 AM',n:'Batido hipercalórico',d:`1 scoop proteína + 1 taza leche + 1 banano + 2 cucharadas avena + aceite de coco.`,p:38,c:65,g:16,k:556},
+     {hora:'☀ ALMUERZO 1:30 PM',n:'Bandeja paisa fit',d:`100g frijoles + 120g carne molida magra + 1 huevo + 1/2 taza arroz + 1/4 aguacate.`,p:50,c:65,g:16,k:604},
+     {hora:'🌿 MERIENDA 4:30 PM',n:'Chocolate proteico',d:`1 scoop proteína sabor chocolate + 1 taza leche + hielo.`,p:30,c:20,g:4,k:236},
+     {hora:'🌙 CENA 7:30 PM',n:'Pasta integral con pollo',d:`1 taza pasta integral + 150g pollo + salsa de tomate natural + champiñones.`,p:48,c:80,g:12,k:620}],
+    [{hora:'🌅 DESAYUNO 9:00 AM',n:'Brunch proteico dominical',d:`3 huevos al gusto + 2 tostadas integrales + aguacate + tomate + jugo de naranja.`,p:28,c:45,g:18,k:454},
+     {hora:'🍎 MEDIA MAÑANA 12:00 PM',n:'Frutas con crema de almendra',d:`1 taza frutas variadas + 2 cucharadas crema de almendra.`,p:6,c:30,g:12,k:248},
+     {hora:'☀ ALMUERZO 2:00 PM',n:'Asado dominical fit',d:`200g punta de anca a la parrilla + ensalada grande + papa asada.`,p:52,c:40,g:14,k:498},
+     {hora:'🌿 MERIENDA 5:00 PM',n:'Batido de recuperación',d:`1 scoop proteína + 1 taza leche + frutas. Día de descanso.`,p:30,c:35,g:5,k:305},
+     {hora:'🌙 CENA 7:30 PM',n:'Sopa nutritiva dominical',d:`Sopa de res magra con verduras: zanahoria, papa, apio, puerro + cilantro.`,p:35,c:30,g:8,k:332}]
+  ];
+}
+
+function generarPlanResistencia(peso, cal){
+  return generarPlanMusculo(peso, cal).map(dia =>
+    dia.map(c => ({...c, c: Math.round(c.c*1.2), k: Math.round(c.k*1.1)}))
+  );
+}
+
+function generarPlanMantener(peso, cal){
+  return generarPlanMusculo(peso, cal).map(dia =>
+    dia.map(c => ({...c, p: Math.round(c.p*0.85), c: Math.round(c.c*0.9), k: Math.round(c.k*0.9)}))
+  );
+}
+
+function showDia(idx, btn){
+  document.querySelectorAll('.dia-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const dia = planSemanal[idx] || [];
+  const totalCal  = dia.reduce((s,c)=>s+c.k,0);
+  const totalProt = dia.reduce((s,c)=>s+c.p,0);
+  const totalCarb = dia.reduce((s,c)=>s+c.c,0);
+  const totalGras = dia.reduce((s,c)=>s+c.g,0);
+  document.getElementById('plan-dia').innerHTML = `
+    <div class="resumen-dia">
+      <div style="font-size:12px;color:var(--muted2);font-weight:600">TOTALES DEL DÍA:</div>
+      <span class="macro cal">🔥 ${totalCal} kcal</span>
+      <span class="macro prot">🥩 ${totalProt}g prot</span>
+      <span class="macro carb">🌾 ${totalCarb}g carb</span>
+      <span class="macro gras">🥑 ${totalGras}g gras</span>
+    </div>
+    ${dia.map(c=>`
+      <div class="comida-card">
+        <div class="comida-hora">${c.hora}</div>
+        <div class="comida-nombre">${c.n}</div>
+        <div class="comida-desc">${c.d}</div>
+        <div class="macros">
+          <span class="macro prot">🥩 ${c.p}g</span>
+          <span class="macro carb">🌾 ${c.c}g</span>
+          <span class="macro gras">🥑 ${c.g}g</span>
+          <span class="macro cal">🔥 ${c.k} kcal</span>
+        </div>
+      </div>`).join('')}`;
+}
+
+function generarTips(enf, fumador, imc, objetivo, nivel){
+  const tips = [
+    {i:'💧',t:'Hidratación',d:'Bebe mínimo 8 vasos de agua al día. Agrega limón para potenciar el metabolismo.'},
+    {i:'⏰',t:'Horarios fijos',d:'Come a la misma hora cada día. Regula el metabolismo y mejora la digestión.'},
+    {i:'🥗',t:'Vegetales en cada comida',d:'Llena la mitad del plato con vegetales. Bajos en calorías, altos en nutrientes.'},
+    {i:'😴',t:'Descanso',d:'Duerme 7-8 horas. El cuerpo repara músculos y regula hormonas del hambre.'},
+  ];
+  if(imc>=25) tips.push({i:'🚶',t:'Actividad extra',d:'Camina 30 minutos adicionales al gym. Quema calorías extra sin esfuerzo.'});
+  if(imc<18.5) tips.push({i:'🍽',t:'Aumenta porciones',d:'No saltes comidas. Si no tienes hambre, consume batidos calóricos entre comidas.'});
+  if(enf&&enf.toLowerCase().includes('hipertens')) tips.push({i:'🧂',t:'Bajo en sodio',d:'Reduce la sal. Usa hierbas, limón y especias para dar sabor.'});
+  if(enf&&enf.toLowerCase().includes('diabet')) tips.push({i:'📉',t:'Índice glucémico',d:'Prefiere alimentos integrales. Evita azúcares simples y harinas refinadas.'});
+  if(fumador==1||fumador=='1') tips.push({i:'🍊',t:'Vitamina C extra',d:'El tabaco destruye vitamina C. Come naranja, kiwi, pimentón rojo todos los días.'});
+  if(nivel==='sedentario') tips.push({i:'🚴',t:'Muévete más',d:'Empieza con caminatas cortas. 10 min después de cada comida mejora la glucemia.'});
+  document.getElementById('tips-container').innerHTML = tips.map(t=>`
+    <div class="tip-card">
+      <div class="tip-icon">${t.i}</div>
+      <div><div style="font-weight:600;font-size:13px;margin-bottom:4px">${t.t}</div>
+      <div style="font-size:12px;color:var(--muted2)">${t.d}</div></div>
+    </div>`).join('');
+}
+
+load();
+</script>
+{% endblock %}
