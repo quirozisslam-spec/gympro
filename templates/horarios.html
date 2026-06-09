@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}Horarios — GymPro{% endblock %}
+{% block topbar_title %}HORARIOS{% endblock %}
+{% block extra_css %}
+<style>
+.horario-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;transition:all .2s}
+.horario-card.general{border-left:3px solid var(--accent)}
+.horario-card.clase{border-left:3px solid var(--accent2)}
+.horario-card.personal{border-left:3px solid var(--success)}
+.hora-badge{font-family:var(--font-display);font-size:20px;color:var(--accent);letter-spacing:1px}
+.horarios-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+/* Calendario simple */
+.cal-wrap{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:14px;margin:12px 0}
+.cal-nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-header span{font-size:10px;color:var(--muted2);text-align:center;display:block;padding:4px}
+.cal-day{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .2s;background:var(--card)}
+.cal-day:hover{border-color:var(--accent);color:var(--accent)}
+.cal-day.selected{background:var(--accent);color:#000;border-color:var(--accent)}
+.cal-day.today{border-color:var(--accent2);color:var(--accent2)}
+.cal-day.past{opacity:.4;cursor:not-allowed}
+.cal-day.empty{background:transparent;border:none;cursor:default}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+  <div>
+    <h1>HORARIOS</h1>
+    <p>{% if session.get('rol') in ['administrador','entrenador'] %}Gestión de clases y horarios{% else %}Reserva tus clases favoritas{% endif %}</p>
+  </div>
+  {% if session.get('rol') in ['administrador','entrenador'] %}
+  <button class="btn btn-primary" onclick="openModal('modal-horario')">+ Nuevo Horario</button>
+  {% endif %}
+</div>
+
+<div id="alert-box" class="alert hidden"></div>
+
+<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+  <button class="btn btn-secondary" onclick="filterTipo('')" id="f-todos">Todos</button>
+  <button class="btn btn-secondary" onclick="filterTipo('general')" id="f-general">🏋 Zona libre</button>
+  <button class="btn btn-secondary" onclick="filterTipo('clase')" id="f-clase">👥 Clases</button>
+  <button class="btn btn-secondary" onclick="filterTipo('personal')" id="f-personal">⭐ Personal</button>
+</div>
+
+{% if session.get('rol') == 'miembro' %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-title">📅 MIS PRÓXIMAS RESERVAS</div>
+  <div id="mis-reservas-lista" style="color:var(--muted2);font-size:13px">Cargando...</div>
+</div>
+{% endif %}
+
+<div class="horarios-grid" id="horarios-grid"></div>
+
+<!-- MODAL CREAR/EDITAR HORARIO (admin) -->
+{% if session.get('rol') in ['administrador','entrenador'] %}
+<div class="modal-overlay" id="modal-horario">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modal-h-titulo">NUEVO HORARIO</h2><button class="modal-close" onclick="closeModal('modal-horario');resetFormH()">✕</button></div>
+    <input type="hidden" id="h-id"/>
+    <div class="form-group"><label>Nombre del horario *</label><input id="h-nombre" placeholder="Ej: Yoga mañana"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Hora inicio *</label><input type="time" id="h-inicio"/></div>
+      <div class="form-group"><label>Hora fin *</label><input type="time" id="h-fin"/></div>
+    </div>
+    <div class="form-group"><label>Días *</label><input id="h-dias" placeholder="Ej: Lun,Mie,Vie"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Tipo</label><select id="h-tipo"><option value="general">Zona libre</option><option value="clase">Clase grupal</option><option value="personal">Personal</option></select></div>
+      <div class="form-group"><label>Cupo máximo</label><input type="number" id="h-cupo" value="20" min="1"/></div>
+    </div>
+    <div class="form-group"><label>Entrenador</label><select id="h-entrenador"><option value="">Sin entrenador</option></select></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-horario');resetFormH()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveHorario()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MIEMBROS -->
+<div class="modal-overlay" id="modal-miembros">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modal-m-titulo">MIEMBROS</h2><button class="modal-close" onclick="closeModal('modal-miembros')">✕</button></div>
+    <div id="modal-m-info" style="margin-bottom:14px;color:var(--muted2);font-size:13px"></div>
+    <div id="modal-m-lista"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-miembros')">Cerrar</button></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- MODAL RESERVAR (miembro y admin) -->
+<div class="modal-overlay" id="modal-reservar">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header"><h2>RESERVAR CLASE</h2><button class="modal-close" onclick="closeModal('modal-reservar')">✕</button></div>
+    <div id="modal-r-info" style="margin-bottom:14px;background:var(--surface);border-radius:var(--radius-sm);padding:14px"></div>
+
+    {% if session.get('rol') == 'administrador' %}
+    <div class="form-group"><label>Reservar para</label><select id="r-usuario"></select></div>
+    {% endif %}
+
+    <!-- CALENDARIO -->
+    <div class="form-group"><label>Selecciona la fecha</label></div>
+    <div class="cal-wrap">
+      <div class="cal-nav">
+        <button class="btn btn-secondary btn-sm" onclick="calPrev()">‹</button>
+        <div id="cal-mes" style="font-family:var(--font-display);font-size:13px;letter-spacing:1px"></div>
+        <button class="btn btn-secondary btn-sm" onclick="calNext()">›</button>
+      </div>
+      <div class="cal-grid" id="cal-headers">
+        <span style="font-size:10px;color:var(--muted2);text-align:center">D</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">L</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">M</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">X</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">J</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">V</span>
+        <span style="font-size:10px;color:var(--muted2);text-align:center">S</span>
+      </div>
+      <div class="cal-grid" id="cal-dias"></div>
+    </div>
+
+    <div id="fecha-sel-display" style="font-size:13px;color:var(--accent2);text-align:center;margin-bottom:12px;min-height:20px"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-reservar')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar" onclick="confirmarReserva()" disabled>Confirmar reserva</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allHorarios=[], entrenadores=[], selectedHorario=null, selectedFecha=null;
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+const esAdmin={{ 'true' if session.get('rol') in ['administrador','entrenador'] else 'false' }};
+const esMiembro={{ 'true' if session.get('rol') == 'miembro' else 'false' }};
+const mesesNombre=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+async function load(){
+  [allHorarios,entrenadores]=await Promise.all([
+    fetch('/api/horarios').then(r=>r.ok?r.json():[]),
+    fetch('/api/entrenadores').then(r=>r.ok?r.json():[]),
+  ]);
+  const sel=document.getElementById('h-entrenador');
+  if(sel) sel.innerHTML='<option value="">Sin entrenador</option>'+entrenadores.map(e=>`<option value="${e.id}">${e.nombre} ${e.apellido}</option>`).join('');
+  const ru=document.getElementById('r-usuario');
+  if(ru){const us=await fetch('/api/usuarios').then(r=>r.ok?r.json():[]);ru.innerHTML=us.filter(u=>u.estado==='activo'&&u.rol==='miembro').map(u=>`<option value="${u.id}">${u.nombre} ${u.apellido}</option>`).join('');}
+  render(allHorarios);
+  if(esMiembro) loadMisReservas();
+}
+
+function filterTipo(tipo){
+  document.querySelectorAll('[id^=f-]').forEach(b=>b.classList.remove('btn-primary'));
+  document.getElementById('f-'+(tipo||'todos')).classList.add('btn-primary');
+  render(tipo?allHorarios.filter(h=>h.tipo===tipo):allHorarios);
+}
+
+function tipoBadge(t){
+  const m={general:'badge-member',clase:'badge-trainer',personal:'badge-admin'};
+  const n={general:'Zona libre',clase:'Clase grupal',personal:'Personal'};
+  return`<span class="badge ${m[t]||''}">${n[t]||t}</span>`;
+}
+
+function render(data){
+  document.getElementById('horarios-grid').innerHTML=data.map(h=>`
+    <div class="horario-card ${h.tipo}">
+      <div class="hora-badge">${h.hora_inicio} — ${h.hora_fin}</div>
+      <div style="font-weight:600;font-size:14px;margin:8px 0">${h.nombre}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tipoBadge(h.tipo)}<span class="badge badge-info">${h.dias}</span></div>
+      ${h.entrenador!='Sin entrenador'?`<div style="font-size:12px;color:var(--muted2)">👤 ${h.entrenador}</div>`:''}
+      <div style="font-size:12px;color:var(--muted2);margin-top:4px">Cupo: ${h.cupo_max} · Hoy: ${h.reservas_hoy} reservas</div>
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+        ${esAdmin?`
+          <button class="btn btn-secondary btn-sm" onclick="abrirReservaAdmin(${h.id},'${h.nombre}','${h.hora_inicio}','${h.hora_fin}','${h.dias}')">📅 Reservar</button>
+          <button class="btn btn-secondary btn-sm" onclick="verMiembros(${h.id},'${h.nombre}')">👥 Ver</button>
+          <button class="btn btn-secondary btn-sm" onclick="editHorario(${JSON.stringify(h).replace(/'/g,'&#39;')})">✏</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteHorario(${h.id})">×</button>
+        `:''}
+        ${esMiembro&&h.tipo==='clase'?`<button class="btn btn-primary btn-sm" style="width:100%" onclick="abrirReserva(${h.id},'${h.nombre}','${h.hora_inicio}','${h.hora_fin}','${h.dias}')">📅 Reservar clase</button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// CALENDARIO
+function renderCal(){
+  const y=calYear,m=calMonth;
+  document.getElementById('cal-mes').textContent=`${mesesNombre[m]} ${y}`;
+  const firstDay=new Date(y,m,1).getDay();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const hoy=new Date();
+  const todayStr=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  let html='';
+  for(let i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isPast=dateStr<todayStr;
+    const isToday=dateStr===todayStr;
+    const isSelected=dateStr===selectedFecha;
+    let cls='cal-day';
+    if(isPast)cls+=' past';
+    if(isToday)cls+=' today';
+    if(isSelected)cls+=' selected';
+    html+=`<div class="${cls}" onclick="${!isPast?`selDate('${dateStr}')`:''}">${d}</div>`;
+  }
+  document.getElementById('cal-dias').innerHTML=html;
+}
+
+function selDate(fecha){
+  selectedFecha=fecha;
+  const d=new Date(fecha+'T00:00:00');
+  document.getElementById('fecha-sel-display').textContent=`📅 ${d.toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`;
+  document.getElementById('btn-confirmar').disabled=false;
+  renderCal();
+}
+
+function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCal();}
+function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal();}
+
+function abrirReserva(id,nombre,hi,hf,dias){
+  selectedHorario=id;selectedFecha=null;
+  document.getElementById('modal-r-info').innerHTML=`<div style="font-weight:700;font-size:15px">${nombre}</div><div style="font-size:12px;color:var(--muted2);margin-top:4px">🕐 ${hi} - ${hf} · 📅 ${dias}</div>`;
+  document.getElementById('fecha-sel-display').textContent='';
+  document.getElementById('btn-confirmar').disabled=true;
+  calYear=new Date().getFullYear();calMonth=new Date().getMonth();
+  renderCal();
+  openModal('modal-reservar');
+}
+
+function abrirReservaAdmin(id,nombre,hi,hf,dias){abrirReserva(id,nombre,hi,hf,dias);}
+
+async function confirmarReserva(){
+  if(!selectedFecha)return;
+  const uid=document.getElementById('r-usuario')?document.getElementById('r-usuario').value:null;
+  const body={horario_id:selectedHorario,fecha:selectedFecha};
+  if(uid) body.usuario_id=uid;
+  const r=await fetch('/api/horarios/reservar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert('¡Clase reservada! 🎉');closeModal('modal-reservar');if(esMiembro)loadMisReservas();load();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function loadMisReservas(){
+  const data=await fetch('/api/horarios/mis-reservas').then(r=>r.ok?r.json():[]);
+  const el=document.getElementById('mis-reservas-lista');
+  if(!data.length){el.textContent='No tienes clases reservadas próximamente.';return;}
+  el.innerHTML=data.map(r=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:var(--surface);border-radius:var(--radius-sm);margin-bottom:6px">
+      <div><div style="font-weight:600">${r.nombre}</div><div style="font-size:12px;color:var(--muted2)">${r.fecha} · ${r.hora_inicio} - ${r.hora_fin}</div></div>
+      <button class="btn btn-danger btn-sm" onclick="cancelarReserva(${r.horario_id},'${r.fecha}')">Cancelar</button>
+    </div>`).join('');
+}
+
+async function cancelarReserva(hid,fecha){
+  if(!confirm('¿Cancelar?'))return;
+  const r=await fetch('/api/horarios/reservar/cancelar',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({horario_id:hid,fecha})});
+  if(r.ok){showAlert('Cancelada.');loadMisReservas();load();}
+}
+
+async function verMiembros(id,nombre){
+  document.getElementById('modal-m-titulo').textContent=nombre.toUpperCase();
+  document.getElementById('modal-m-lista').innerHTML='<div style="color:var(--muted2);text-align:center;padding:20px">Cargando...</div>';
+  openModal('modal-miembros');
+  const miembros=await fetch(`/api/horarios/${id}/miembros`).then(r=>r.ok?r.json():[]);
+  document.getElementById('modal-m-lista').innerHTML=miembros.length?
+    miembros.map(m=>`<div style="padding:10px 0;border-bottom:1px solid rgba(128,128,128,.15);font-size:14px">${m.miembro}</div>`).join(''):
+    '<div style="color:var(--muted2);text-align:center;padding:20px">Sin reservas</div>';
+}
+
+function resetFormH(){document.getElementById('h-id').value='';['h-nombre','h-inicio','h-fin','h-dias'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('h-cupo').value=20;document.getElementById('h-tipo').value='clase';document.getElementById('modal-h-titulo').textContent='NUEVO HORARIO';}
+
+function editHorario(h){
+  document.getElementById('h-id').value=h.id;
+  document.getElementById('h-nombre').value=h.nombre;
+  document.getElementById('h-inicio').value=h.hora_inicio;
+  document.getElementById('h-fin').value=h.hora_fin;
+  document.getElementById('h-dias').value=h.dias;
+  document.getElementById('h-tipo').value=h.tipo;
+  document.getElementById('h-cupo').value=h.cupo_max;
+  if(h.entrenador_id) document.getElementById('h-entrenador').value=h.entrenador_id;
+  document.getElementById('modal-h-titulo').textContent='EDITAR HORARIO';
+  openModal('modal-horario');
+}
+
+async function saveHorario(){
+  const id=document.getElementById('h-id').value;
+  const body={nombre:document.getElementById('h-nombre').value,hora_inicio:document.getElementById('h-inicio').value,hora_fin:document.getElementById('h-fin').value,dias:document.getElementById('h-dias').value,cupo_max:document.getElementById('h-cupo').value,tipo:document.getElementById('h-tipo').value,entrenador_id:document.getElementById('h-entrenador').value||null};
+  if(!body.nombre||!body.hora_inicio||!body.hora_fin||!body.dias)return showAlert('Completa todos los campos obligatorios.','error');
+  const url=id?`/api/horarios/${id}`:'/api/horarios';
+  const method=id?'PUT':'POST';
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){showAlert(id?'Horario actualizado.':'Horario creado.');closeModal('modal-horario');resetFormH();load();}
+  else showAlert(d.error||'Error','error');
+}
+
+async function deleteHorario(id){
+  if(!confirm('¿Eliminar este horario?'))return;
+  const r=await fetch(`/api/horarios/${id}`,{method:'DELETE'});
+  if(r.ok){showAlert('Horario eliminado.');load();}
+  else showAlert('Error','error');
+}
+
+load();
+</script>
+{% endblock %}
